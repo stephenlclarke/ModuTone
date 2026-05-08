@@ -1,0 +1,26 @@
+/* Dark theme — neutral semantic base palette */
+[data-theme="dark"] {
+  --color-bg-primary: #1e1e2e;
+  --color-bg-secondary: #252538;
+  --color-bg-tertiary: #2d2d42;
+  --color-text-primary: #d4d4d4;
+  --color-text-secondary: #999999;
+  --color-text-disabled: #666666;
+  --color-border: #3a3a50;
+  --color-accent: #7b88e0;
+  --color-accent-hover: #6a77cf;
+  --color-accent-subtle: rgba(123, 136, 224, 0.12);
+  --color-accent-text: #a0aaff;
+  --color-error: #f06060;
+  --color-error-bg: #3a1a1a;
+  --color-error-hover: #d44040;
+  --color-success: #4db870;
+  --color-success-bg: #1a3a24;
+  --color-success-hover: #3da85e;
+  --color-warning: #cc8800;
+  --color-warning-bg: #3a2e10;
+  --color-neutral-bg: #2a2a40;
+  --color-overlay: rgba(0, 0, 0, 0.6);
+  --color-focus-ring: rgba(123, 136, 224, 0.5);
+  --color-surface-glass: transparent;
+}

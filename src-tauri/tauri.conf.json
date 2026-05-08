@@ -1,0 +1,55 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicoulaj/dotfiles/refs/heads/master/submodules/tauri/crates/tauri-cli/schema.json",
+  "productName": "ModuTone",
+  "version": "1.0.0",
+  "identifier": "com.modutone.desktop",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run build:sidecar:dev && npm run dev:frontend",
+    "beforeBuildCommand": "npm run build:sidecar && npm run build:frontend"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "ModuTone",
+        "width": 1024,
+        "height": 768,
+        "minWidth": 800,
+        "minHeight": 600,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis",
+      "deb",
+      "appimage",
+      "dmg"
+    ],
+    "externalBin": [
+      "binaries/modutone-worker"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "resources/models/model_catalog.json": "models/model_catalog.json"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "both",
+        "installerHooks": "./nsis/hooks.nsh"
+      }
+    }
+  }
+}

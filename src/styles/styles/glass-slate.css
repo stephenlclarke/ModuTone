@@ -1,0 +1,62 @@
+/* Glass Slate — frosted glass, lavender accent, translucent panels */
+
+[data-theme="dark"][data-style="glass-slate"] {
+  --color-bg-primary: #1a2332;
+  --color-bg-secondary: #1f2a3a;
+  --color-bg-tertiary: #263244;
+  --color-text-primary: #e4e8f0;
+  --color-text-secondary: #8a96a8;
+  --color-text-disabled: #556070;
+  --color-border: #2e3e52;
+  --color-accent: #a78bfa;
+  --color-accent-hover: #9474e8;
+  --color-accent-subtle: rgba(167, 139, 250, 0.1);
+  --color-accent-text: #c4b5fd;
+  --color-error: #f87171;
+  --color-error-bg: #3a1520;
+  --color-error-hover: #e05555;
+  --color-success: #4ade80;
+  --color-success-bg: #0f3020;
+  --color-success-hover: #38c86c;
+  --color-warning: #fbbf24;
+  --color-warning-bg: #3a3010;
+  --color-neutral-bg: #263244;
+  --color-overlay: rgba(0, 0, 0, 0.55);
+  --color-focus-ring: rgba(167, 139, 250, 0.45);
+  --color-surface-glass: rgba(26, 35, 50, 0.75);
+}
+
+[data-theme="light"][data-style="glass-slate"] {
+  --color-bg-primary: #f0f4f8;
+  --color-bg-secondary: #e8eef4;
+  --color-bg-tertiary: #dce4ec;
+  --color-text-primary: #1a2332;
+  --color-text-secondary: #4a5568;
+  --color-text-disabled: #8a96a8;
+  --color-border: #c8d4e0;
+  --color-accent: #7c3aed;
+  --color-accent-hover: #6b28d4;
+  --color-accent-subtle: rgba(124, 58, 237, 0.06);
+  --color-accent-text: #6b28d4;
+  --color-error: #dc2626;
+  --color-error-bg: #fef2f2;
+  --color-error-hover: #b91c1c;
+  --color-success: #16a34a;
+  --color-success-bg: #f0fdf4;
+  --color-success-hover: #15803d;
+  --color-warning: #d97706;
+  --color-warning-bg: #fffbeb;
+  --color-neutral-bg: #e2eaf2;
+  --color-overlay: rgba(0, 0, 0, 0.3);
+  --color-focus-ring: rgba(124, 58, 237, 0.35);
+  --color-surface-glass: rgba(240, 244, 248, 0.8);
+}
+
+/* Glass effect for panels — with solid fallback */
+@supports (backdrop-filter: blur(12px)) {
+  [data-style="glass-slate"] .settings-panel,
+  [data-style="glass-slate"] .dialog-content {
+    background: var(--color-surface-glass);
+    backdrop-filter: blur(12px);
+  }
+}

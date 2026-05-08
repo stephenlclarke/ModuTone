@@ -1,0 +1,14 @@
+/* Elevation tokens — shadow levels */
+
+:root {
+  --elevation-none: none;
+  --elevation-low: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --elevation-medium: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --elevation-high: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] {
+  --elevation-low: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --elevation-medium: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --elevation-high: 0 8px 24px rgba(0, 0, 0, 0.4);
+}

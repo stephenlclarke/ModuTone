@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicoulaj/dotfiles/refs/heads/master/submodules/tauri/crates/tauri-cli/schema.json",
+  "bundle": {
+    "resources": {
+      "resources/models/model_catalog.json": "models/model_catalog.json",
+      "resources/models/*.gguf": "models/"
+    }
+  }
+}

@@ -1,0 +1,39 @@
+/* Motion tokens — shared motion language (identical across all themes) */
+
+:root {
+  /* Durations */
+  --duration-fast: 120ms;
+  --duration-normal: 180ms;
+  --duration-medium: 220ms;
+  --duration-slow: 320ms;
+
+  /* Easing */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Scale — visible but restrained */
+  --scale-press: 0.97;
+  --scale-modal-start: 0.95;
+
+  /* Distances */
+  --shift-sm: 8px;
+  --shift-md: 16px;
+  --shift-lg: 24px;
+
+  /* Focus */
+  --focus-ring-expand: 3px;
+}
+
+/* Reduced motion: disable all decorative timing and transforms */
+[data-motion="reduced"] {
+  --duration-fast: 0ms;
+  --duration-normal: 0ms;
+  --duration-medium: 0ms;
+  --duration-slow: 0ms;
+  --scale-press: 1;
+  --scale-modal-start: 1;
+  --shift-sm: 0px;
+  --shift-md: 0px;
+  --shift-lg: 0px;
+}

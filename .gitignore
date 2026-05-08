@@ -1,0 +1,47 @@
+# Rust
+target/
+**/*.rs.bk
+
+# Node
+node_modules/
+dist/
+dist-bundle/
+*.tsbuildinfo
+
+# Tauri auto-generated
+src-tauri/gen/
+
+# Compiled worker sidecar (built from source)
+src-tauri/binaries/
+
+# Model weights (downloaded separately)
+src-tauri/resources/models/*.gguf
+src-tauri/resources/models/.cache/
+
+# SFX stub build artifacts
+tools/sfx-stub/target/
+tools/sfx-stub/Cargo.lock
+
+# Third-party tool binaries
+tools/7za.exe
+tools/7za.dll
+tools/7zxa.dll
+tools/7zSD.sfx
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# Claude Code
+.claude/

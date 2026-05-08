@@ -1,0 +1,18 @@
+[
+  {
+    "modelId": "qwen2.5-3b-instruct",
+    "displayName": "Qwen 2.5 3B Instruct",
+    "filename": "qwen2.5-3b-instruct-q5_k_m.gguf",
+    "sizeBytes": 2438740384,
+    "minRamBytes": 8000000000,
+    "ramClassLabel": "~8 GB"
+  },
+  {
+    "modelId": "qwen2.5-14b-instruct",
+    "displayName": "Qwen 2.5 14B Instruct",
+    "filename": "qwen2.5-14b-instruct-q5_k_m.gguf",
+    "sizeBytes": 2742898688,
+    "minRamBytes": 24000000000,
+    "ramClassLabel": "~24 GB"
+  }
+]

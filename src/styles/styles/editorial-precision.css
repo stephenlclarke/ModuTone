@@ -1,0 +1,53 @@
+/* Editorial Precision — high contrast, gold accent, typographic focus */
+
+[data-theme="dark"][data-style="editorial-precision"] {
+  --color-bg-primary: #0f0f0f;
+  --color-bg-secondary: #1a1a1a;
+  --color-bg-tertiary: #242424;
+  --color-text-primary: #f0f0f0;
+  --color-text-secondary: #a0a0a0;
+  --color-text-disabled: #606060;
+  --color-border: #333333;
+  --color-accent: #d4a853;
+  --color-accent-hover: #c09840;
+  --color-accent-subtle: rgba(212, 168, 83, 0.1);
+  --color-accent-text: #e8c070;
+  --color-error: #f06060;
+  --color-error-bg: #3a1515;
+  --color-error-hover: #d44040;
+  --color-success: #5cb870;
+  --color-success-bg: #1a3a1f;
+  --color-success-hover: #4ca860;
+  --color-warning: #d4a853;
+  --color-warning-bg: #3a3010;
+  --color-neutral-bg: #242424;
+  --color-overlay: rgba(0, 0, 0, 0.7);
+  --color-focus-ring: rgba(212, 168, 83, 0.45);
+  --color-surface-glass: transparent;
+}
+
+[data-theme="light"][data-style="editorial-precision"] {
+  --color-bg-primary: #fdfbf7;
+  --color-bg-secondary: #f5f2ec;
+  --color-bg-tertiary: #eae5dc;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #5a5545;
+  --color-text-disabled: #9a9585;
+  --color-border: #d4cfc4;
+  --color-accent: #8b6914;
+  --color-accent-hover: #725510;
+  --color-accent-subtle: rgba(139, 105, 20, 0.06);
+  --color-accent-text: #725510;
+  --color-error: #c03030;
+  --color-error-bg: #fef0f0;
+  --color-error-hover: #a02828;
+  --color-success: #2d7a40;
+  --color-success-bg: #f0fef4;
+  --color-success-hover: #246a35;
+  --color-warning: #8b6914;
+  --color-warning-bg: #fdf8ee;
+  --color-neutral-bg: #eee9e0;
+  --color-overlay: rgba(0, 0, 0, 0.3);
+  --color-focus-ring: rgba(139, 105, 20, 0.35);
+  --color-surface-glass: transparent;
+}

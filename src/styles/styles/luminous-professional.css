@@ -1,0 +1,53 @@
+/* Luminous Professional — polished, teal accent, premium feel */
+
+[data-theme="dark"][data-style="luminous-professional"] {
+  --color-bg-primary: #0d1b2e;
+  --color-bg-secondary: #132438;
+  --color-bg-tertiary: #1a2e44;
+  --color-text-primary: #e0e8f0;
+  --color-text-secondary: #8fa4b8;
+  --color-text-disabled: #5a7088;
+  --color-border: #2a4058;
+  --color-accent: #00d4aa;
+  --color-accent-hover: #00b894;
+  --color-accent-subtle: rgba(0, 212, 170, 0.1);
+  --color-accent-text: #40e8c4;
+  --color-error: #ff6b6b;
+  --color-error-bg: #3a1520;
+  --color-error-hover: #e05555;
+  --color-success: #00d4aa;
+  --color-success-bg: #0a2e28;
+  --color-success-hover: #00b894;
+  --color-warning: #ffa940;
+  --color-warning-bg: #3a2a10;
+  --color-neutral-bg: #1a2e44;
+  --color-overlay: rgba(0, 0, 0, 0.65);
+  --color-focus-ring: rgba(0, 212, 170, 0.45);
+  --color-surface-glass: transparent;
+}
+
+[data-theme="light"][data-style="luminous-professional"] {
+  --color-bg-primary: #f8fbff;
+  --color-bg-secondary: #eef4fa;
+  --color-bg-tertiary: #e0eaf4;
+  --color-text-primary: #0d1b2e;
+  --color-text-secondary: #4a6580;
+  --color-text-disabled: #8fa4b8;
+  --color-border: #c8d8e8;
+  --color-accent: #0a7d68;
+  --color-accent-hover: #06614f;
+  --color-accent-subtle: rgba(10, 125, 104, 0.06);
+  --color-accent-text: #06614f;
+  --color-error: #cc3333;
+  --color-error-bg: #fef0f0;
+  --color-error-hover: #b02c2c;
+  --color-success: #0a7d68;
+  --color-success-bg: #eefaf7;
+  --color-success-hover: #06614f;
+  --color-warning: #c07800;
+  --color-warning-bg: #fff9f0;
+  --color-neutral-bg: #e8f0f8;
+  --color-overlay: rgba(0, 0, 0, 0.3);
+  --color-focus-ring: rgba(10, 125, 104, 0.35);
+  --color-surface-glass: transparent;
+}
