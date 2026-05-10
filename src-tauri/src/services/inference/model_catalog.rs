@@ -2,7 +2,7 @@
 // Model catalog — discovery and registry for GGUF model files.
 //
 // Discovers models from:
-// 1. Bundled models dir: {exe_dir}/models/ (or MODUTONE_BUNDLED_MODELS_DIR env var)
+// 1. Bundled models dir: {tauri_resource_dir}/models/ (or MODUTONE_BUNDLED_MODELS_DIR env var)
 // 2. User models dir: {app_data_dir}/models/ (or MODUTONE_USER_MODELS_DIR env var)
 //
 // Each directory may contain a model_catalog.json describing available models.
@@ -49,11 +49,11 @@ impl ModelRegistry {
     /// Initialize the model registry by discovering models from known directories.
     ///
     /// - `app_data_dir`: The app's data directory (for user models)
-    pub fn init(app_data_dir: &Path) -> Self {
+    pub fn init(app_data_dir: &Path, resource_dir: Option<&Path>) -> Self {
         let mut models = Vec::new();
 
         // 1. Bundled models directory
-        let bundled_dir = resolve_bundled_models_dir();
+        let bundled_dir = resolve_bundled_models_dir(resource_dir);
         if let Some(dir) = &bundled_dir {
             log::info!("Scanning bundled models dir: {}", dir.display());
             if let Ok(entries) = discover_from_directory(dir) {
@@ -103,13 +103,14 @@ impl ModelRegistry {
 }
 
 /// Resolve bundled models directory.
-/// Priority: MODUTONE_BUNDLED_MODELS_DIR env var, then platform-specific paths.
+/// Priority: MODUTONE_BUNDLED_MODELS_DIR env var, then Tauri's resource
+/// directory. Tauri owns the platform-specific bundle layout, including:
 ///
-/// Platform resource locations (from Tauri bundle layout):
-///   Windows NSIS / AppImage: {exe_dir}/models/
-///   macOS .app:              {exe_dir}/../Resources/models/
-///   Linux DEB:               {exe_dir}/../lib/modutone/models/
-fn resolve_bundled_models_dir() -> Option<PathBuf> {
+///   Windows NSIS: resource dir beside the executable
+///   macOS .app:   Contents/Resources
+///   Linux DEB:    /usr/lib/{package-name}
+///   AppImage:     ${APPDIR}/usr/lib/{package-name}
+fn resolve_bundled_models_dir(resource_dir: Option<&Path>) -> Option<PathBuf> {
     if let Ok(dir) = std::env::var("MODUTONE_BUNDLED_MODELS_DIR") {
         let path = PathBuf::from(dir);
         if path.is_dir() {
@@ -137,34 +138,29 @@ fn resolve_bundled_models_dir() -> Option<PathBuf> {
         }
     }
 
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            // Windows NSIS / Linux AppImage: resources alongside executable
-            let models_dir = dir.join("models");
-            if models_dir.is_dir() {
-                return Some(models_dir);
-            }
+    if let Some(dir) = resource_dir.and_then(resolve_resource_models_dir) {
+        log::info!("Tauri resource dir: using models dir: {}", dir.display());
+        return Some(dir);
+    }
 
-            // macOS .app bundle: exe in Contents/MacOS/, resources in Contents/Resources/
-            let macos_resources = dir.join("..").join("Resources").join("models");
-            if macos_resources.is_dir() {
-                log::info!(
-                    "macOS bundle: using resources dir: {}",
-                    macos_resources.display()
-                );
-                return Some(macos_resources);
-            }
-
-            // Linux DEB: exe in /usr/bin/, resources in /usr/lib/{product}/
-            let linux_lib = dir.join("..").join("lib").join("modutone").join("models");
-            if linux_lib.is_dir() {
-                log::info!("Linux package: using lib dir: {}", linux_lib.display());
-                return Some(linux_lib);
-            }
-        }
+    if let Some(resource_dir) = resource_dir {
+        let models_dir = resource_dir.join("models");
+        log::warn!(
+            "Tauri resource dir resolved but models dir is missing: {}",
+            models_dir.display()
+        );
     }
 
     None
+}
+
+fn resolve_resource_models_dir(resource_dir: &Path) -> Option<PathBuf> {
+    let models_dir = resource_dir.join("models");
+    if models_dir.is_dir() {
+        Some(models_dir)
+    } else {
+        None
+    }
 }
 
 /// Resolve user models directory.
@@ -789,7 +785,7 @@ mod tests {
         let prev = std::env::var(key).ok();
         std::env::set_var(key, tmp.path());
 
-        let registry = ModelRegistry::init(Path::new("/nonexistent"));
+        let registry = ModelRegistry::init(Path::new("/nonexistent"), None);
 
         // Restore env var
         match prev {
@@ -836,7 +832,7 @@ mod tests {
         std::env::set_var(bkey, bundled_dir.path());
         std::env::set_var(ukey, &user_models_dir);
 
-        let registry = ModelRegistry::init(user_dir.path());
+        let registry = ModelRegistry::init(user_dir.path(), None);
 
         // Restore
         match prev_b {
@@ -856,6 +852,17 @@ mod tests {
         // The 14B model should still be from bundled
         let model_14b = registry.find_by_id("qwen2.5-14b-instruct").unwrap();
         assert!(!model_14b.is_installed);
+    }
+
+    #[test]
+    fn bundled_models_dir_resolves_from_tauri_resource_dir() {
+        let resource_dir = tempfile::tempdir().unwrap();
+        let models_dir = resource_dir.path().join("models");
+        fs::create_dir_all(&models_dir).unwrap();
+
+        let resolved = resolve_resource_models_dir(resource_dir.path());
+
+        assert_eq!(resolved.as_deref(), Some(models_dir.as_path()));
     }
 
     // --- Shard parsing tests ---
