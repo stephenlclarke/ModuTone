@@ -62,20 +62,28 @@ manages the worker sidecar over a stdin/stdout JSON Lines protocol.
 ```mermaid
 flowchart TD
     A[Writer enters text] --> B[Select profile, tags, and model]
-    B --> C{Model ready?}
-    C -- No --> D[Warm selected local model]
-    D --> E[Worker sidecar loads model]
-    E --> F[Ready for generation]
-    C -- Yes --> F
-    F --> G[Generate or refine]
-    G --> H[React state sends Tauri IPC command]
-    H --> I[Rust backend validates request and composes prompt]
-    I --> J[Worker runs llama.cpp or MLX inference locally]
-    J --> K[Backend emits generation events]
-    K --> L[Frontend updates accepted output or proposal]
-    L --> M{Refine again?}
-    M -- Yes --> G
-    M -- No --> N[Accept, copy, or clear output]
+    B --> C{Model installed?}
+    C -- No --> D{Install source}
+    D -- Settings download --> E[Backend downloads approved model files]
+    E --> F[Write files to app data models directory]
+    D -- Manual install --> G[Place GGUF file or MLX model folder]
+    F --> H[Refresh model registry]
+    G --> H
+    H --> B
+    C -- Yes --> I{Model ready?}
+    I -- No --> J[Warm selected local model]
+    J --> K[Worker sidecar loads model]
+    K --> L[Ready for generation]
+    I -- Yes --> L
+    L --> M[Generate or refine]
+    M --> N[React state sends Tauri IPC command]
+    N --> O[Rust backend validates request and composes prompt]
+    O --> P[Worker runs llama.cpp or MLX inference locally]
+    P --> Q[Backend emits generation events]
+    Q --> R[Frontend updates accepted output or proposal]
+    R --> S{Refine again?}
+    S -- Yes --> M
+    S -- No --> T[Accept, copy, or clear output]
 ```
 
 See [Architecture](docs/ARCHITECTURE.md) for the full technical breakdown.
