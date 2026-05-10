@@ -97,12 +97,15 @@ pub async fn runtime_warm_model(
     }
 
     // Transition to warming (only valid from idle)
-    supervisor.set_warming().await.map_err(|e| IpcError {
-        code: "WORKER_UNAVAILABLE".to_string(),
-        message: "Worker must be idle to warm a model".to_string(),
-        detail: Some(e),
-        subsystem: "inference".to_string(),
-    })?;
+    supervisor
+        .set_warming(request.model_id.clone())
+        .await
+        .map_err(|e| IpcError {
+            code: "WORKER_UNAVAILABLE".to_string(),
+            message: "Worker must be idle to warm a model".to_string(),
+            detail: Some(e),
+            subsystem: "inference".to_string(),
+        })?;
 
     // Send load_model to worker with real model path and backend hint.
     let msg = WorkerInbound::LoadModel {
@@ -125,6 +128,7 @@ pub async fn runtime_warm_model(
         });
     }
 
+    supervisor.schedule_model_load_timeout(app.clone(), request.model_id.clone());
     supervisor.emit_status_changed(&app, None).await;
 
     Ok(())

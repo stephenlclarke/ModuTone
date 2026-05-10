@@ -27,6 +27,7 @@ use super::job_coordinator::JobCoordinator;
 use super::worker_protocol::{WorkerInbound, WorkerOutbound};
 
 const READY_TIMEOUT: Duration = Duration::from_secs(15);
+const MODEL_LOAD_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 const RESTART_DELAY: Duration = Duration::from_secs(1);
 const MAX_RESTARTS: usize = 3;
@@ -71,6 +72,7 @@ pub(crate) struct SupervisorInner {
     pub state: WorkerProcessState,
     pub stdin: Option<ChildStdin>,
     pub loaded_model_id: Option<String>,
+    pub warming_model_id: Option<String>,
     pub restart_timestamps: VecDeque<Instant>,
     pub worker_binary_path: PathBuf,
     pub shutdown_requested: bool,
@@ -99,6 +101,7 @@ impl WorkerSupervisor {
                 state: WorkerProcessState::NotStarted,
                 stdin: None,
                 loaded_model_id: None,
+                warming_model_id: None,
                 restart_timestamps: VecDeque::new(),
                 worker_binary_path,
                 shutdown_requested: false,
@@ -189,11 +192,12 @@ impl WorkerSupervisor {
         let mut inner = self.inner.lock().await;
         if inner.state == WorkerProcessState::Warming {
             inner.state = WorkerProcessState::Idle;
+            inner.warming_model_id = None;
         }
     }
 
     /// Transition worker state to Warming (called by warm_model command).
-    pub async fn set_warming(&self) -> Result<(), String> {
+    pub async fn set_warming(&self, model_id: String) -> Result<(), String> {
         let mut inner = self.inner.lock().await;
         if inner.state != WorkerProcessState::Idle {
             return Err(format!(
@@ -202,7 +206,45 @@ impl WorkerSupervisor {
             ));
         }
         inner.state = WorkerProcessState::Warming;
+        inner.warming_model_id = Some(model_id);
         Ok(())
+    }
+
+    /// Schedule a watchdog for the active model load. If the same model is
+    /// still warming when the timeout expires, the worker is dropped so crash
+    /// recovery can start a fresh process.
+    pub fn schedule_model_load_timeout(&self, app: AppHandle, model_id: String) {
+        let supervisor = self.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(MODEL_LOAD_TIMEOUT).await;
+            if supervisor.mark_model_load_timed_out(&model_id).await {
+                log::warn!("Model load timed out for model={}", model_id);
+                supervisor
+                    .emit_status_changed_with_error_class(
+                        &app,
+                        Some("Model load timed out".to_string()),
+                        Some("transient".to_string()),
+                    )
+                    .await;
+            }
+        });
+    }
+
+    /// Mark a still-warming model as timed out and drop the worker process.
+    pub async fn mark_model_load_timed_out(&self, model_id: &str) -> bool {
+        let mut inner = self.inner.lock().await;
+        if inner.state != WorkerProcessState::Warming
+            || inner.warming_model_id.as_deref() != Some(model_id)
+        {
+            return false;
+        }
+
+        inner.state = WorkerProcessState::CrashRecovery;
+        inner.loaded_model_id = None;
+        inner.warming_model_id = None;
+        inner.stdin = None;
+        inner.child_process = None;
+        true
     }
 
     /// Force-kill the worker process. Used when cooperative cancellation
@@ -262,6 +304,7 @@ impl WorkerSupervisor {
             inner.stdin = None;
             inner.child_process = None;
             inner.state = WorkerProcessState::Stopped;
+            inner.warming_model_id = None;
             log::warn!("Worker did not exit gracefully, force-stopped");
         }
 
@@ -355,6 +398,7 @@ impl WorkerSupervisor {
             inner.state = WorkerProcessState::Starting;
             inner.stdin = Some(stdin);
             inner.loaded_model_id = None;
+            inner.warming_model_id = None;
             inner.child_process = Some(child);
 
             // Spawn stdout reader task
@@ -387,6 +431,7 @@ impl WorkerSupervisor {
                     inner.state = WorkerProcessState::CrashRecovery;
                     inner.stdin = None;
                     inner.child_process = None;
+                    inner.warming_model_id = None;
                 }
                 drop(inner);
 
@@ -551,6 +596,7 @@ async fn worker_stdout_reader(
                 {
                     let mut inner = supervisor.inner.lock().await;
                     inner.loaded_model_id = Some(model_id.clone());
+                    inner.warming_model_id = None;
                     if inner.state == WorkerProcessState::Warming {
                         inner.state = WorkerProcessState::Idle;
                     }
@@ -567,6 +613,7 @@ async fn worker_stdout_reader(
                     // the worker reality (worker has no model loaded after
                     // a load failure).
                     inner.loaded_model_id = None;
+                    inner.warming_model_id = None;
                     if inner.state == WorkerProcessState::Warming {
                         inner.state = WorkerProcessState::Idle;
                     }
@@ -631,12 +678,14 @@ async fn worker_stdout_reader(
             inner.state = WorkerProcessState::Stopped;
             inner.stdin = None;
             inner.child_process = None;
+            inner.warming_model_id = None;
             (false, false)
         } else {
             let warming = inner.state == WorkerProcessState::Warming;
             inner.state = WorkerProcessState::CrashRecovery;
             inner.stdin = None;
             inner.child_process = None;
+            inner.warming_model_id = None;
             (true, warming)
         }
     };
@@ -863,12 +912,26 @@ mod tests {
         let sup = WorkerSupervisor::new(PathBuf::from("/nonexistent"));
 
         // NotStarted → set_warming should fail
-        assert!(sup.set_warming().await.is_err());
+        assert!(sup.set_warming("model-a".to_string()).await.is_err());
 
         // Idle → set_warming should succeed
         sup.inner.lock().await.state = WorkerProcessState::Idle;
-        assert!(sup.set_warming().await.is_ok());
+        assert!(sup.set_warming("model-a".to_string()).await.is_ok());
         assert_eq!(sup.get_state().await, WorkerProcessState::Warming);
+    }
+
+    #[tokio::test]
+    async fn model_load_timeout_only_applies_to_matching_warming_model() {
+        let sup = WorkerSupervisor::new(PathBuf::from("/nonexistent"));
+        sup.inner.lock().await.state = WorkerProcessState::Idle;
+        sup.set_warming("model-a".to_string()).await.unwrap();
+
+        assert!(!sup.mark_model_load_timed_out("model-b").await);
+        assert_eq!(sup.get_state().await, WorkerProcessState::Warming);
+
+        assert!(sup.mark_model_load_timed_out("model-a").await);
+        assert_eq!(sup.get_state().await, WorkerProcessState::CrashRecovery);
+        assert_eq!(sup.get_loaded_model_id().await, None);
     }
 
     #[tokio::test]
