@@ -366,11 +366,7 @@ async fn download_model_files(
         .await
         .map_err(|e| DownloadFailure::Failed {
             downloaded: 0,
-            error: format!(
-                "Failed to create models directory {}: {}",
-                user_models_dir.display(),
-                e
-            ),
+            error: format!("Failed to create models directory: {}", e),
         })?;
 
     read_user_catalog_entries(&user_models_dir.join("model_catalog.json"))
@@ -420,9 +416,8 @@ async fn download_model_files(
                 .map_err(|e| DownloadFailure::Failed {
                     downloaded,
                     error: format!(
-                        "Failed to create model directory {}: {}",
-                        parent.display(),
-                        e
+                        "Failed to create model directory for {}: {}",
+                        file.relative_path, e
                     ),
                 })?;
         }
@@ -570,7 +565,10 @@ async fn download_file(
     }
     .map_err(|e| DownloadFailure::Failed {
         downloaded: *downloaded,
-        error: format!("Failed to open {}: {}", partial.display(), e),
+        error: format!(
+            "Failed to open partial download for {}: {}",
+            file.relative_path, e
+        ),
     })?;
 
     if resumes {
@@ -579,7 +577,7 @@ async fn download_file(
             .await
             .map_err(|e| DownloadFailure::Failed {
                 downloaded: *downloaded,
-                error: format!("Failed to resume {}: {}", partial.display(), e),
+                error: format!("Failed to resume {}: {}", file.relative_path, e),
             })?;
     }
 
@@ -623,7 +621,7 @@ async fn download_file(
             .await
             .map_err(|e| DownloadFailure::Failed {
                 downloaded: *downloaded,
-                error: format!("Failed while writing {}: {}", partial.display(), e),
+                error: format!("Failed while writing {}: {}", file.relative_path, e),
             })?;
         let chunk_len = chunk.len() as u64;
         file_downloaded += chunk_len;
@@ -642,7 +640,7 @@ async fn download_file(
 
     output.flush().await.map_err(|e| DownloadFailure::Failed {
         downloaded: *downloaded,
-        error: format!("Failed to flush {}: {}", partial.display(), e),
+        error: format!("Failed to flush {}: {}", file.relative_path, e),
     })?;
     drop(output);
 
@@ -797,10 +795,10 @@ async fn write_user_catalog_entry(
     let tmp_path = catalog_path.with_extension("json.tmp");
     tokio::fs::write(&tmp_path, format!("{}\n", json))
         .await
-        .map_err(|e| format!("Failed to write {}: {}", tmp_path.display(), e))?;
+        .map_err(|e| format!("Failed to write user model catalog: {}", e))?;
     tokio::fs::rename(&tmp_path, &catalog_path)
         .await
-        .map_err(|e| format!("Failed to install {}: {}", catalog_path.display(), e))?;
+        .map_err(|e| format!("Failed to install user model catalog: {}", e))?;
 
     Ok(())
 }
@@ -812,14 +810,9 @@ async fn read_user_catalog_entries(catalog_path: &Path) -> Result<Vec<CatalogEnt
 
     let json = tokio::fs::read_to_string(catalog_path)
         .await
-        .map_err(|e| format!("Failed to read {}: {}", catalog_path.display(), e))?;
-    serde_json::from_str::<Vec<CatalogEntry>>(&json).map_err(|e| {
-        format!(
-            "Model catalog {} is invalid JSON: {}",
-            catalog_path.display(),
-            e
-        )
-    })
+        .map_err(|e| format!("Failed to read user model catalog: {}", e))?;
+    serde_json::from_str::<Vec<CatalogEntry>>(&json)
+        .map_err(|e| format!("User model catalog is invalid JSON: {}", e))
 }
 
 fn emit_progress(

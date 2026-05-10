@@ -140,7 +140,7 @@ fn discover_known_model_dirs(
     // 1. Bundled models directory
     let bundled_dir = resolve_bundled_models_dir(resource_dir);
     if let Some(dir) = &bundled_dir {
-        log::info!("Scanning bundled models dir: {}", dir.display());
+        log::info!("Scanning bundled models directory");
         if let Ok(entries) = discover_from_directory(dir) {
             models.extend(entries);
         }
@@ -149,13 +149,9 @@ fn discover_known_model_dirs(
     // 2. User models directory (auto-create if missing)
     let user_dir = resolve_user_models_dir(app_data_dir);
     if let Err(e) = std::fs::create_dir_all(&user_dir) {
-        log::warn!(
-            "Failed to create user models directory {}: {}",
-            user_dir.display(),
-            e
-        );
+        log::warn!("Failed to create user models directory: {}", e);
     }
-    log::info!("Scanning user models dir: {}", user_dir.display());
+    log::info!("Scanning user models directory");
     if let Ok(entries) = discover_from_directory(&user_dir) {
         // User entries override bundled entries with the same modelId
         for entry in entries {
@@ -184,10 +180,7 @@ fn resolve_bundled_models_dir(resource_dir: Option<&Path>) -> Option<PathBuf> {
         if path.is_dir() {
             return Some(path);
         }
-        log::warn!(
-            "MODUTONE_BUNDLED_MODELS_DIR set but not a directory: {}",
-            path.display()
-        );
+        log::warn!("MODUTONE_BUNDLED_MODELS_DIR set but not a directory");
     }
 
     // In debug/dev builds, prefer the source tree resources directory.
@@ -198,25 +191,18 @@ fn resolve_bundled_models_dir(resource_dir: Option<&Path>) -> Option<PathBuf> {
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let dev_models = PathBuf::from(manifest_dir).join("resources").join("models");
         if dev_models.is_dir() {
-            log::info!(
-                "Dev mode: using source tree models dir: {}",
-                dev_models.display()
-            );
+            log::info!("Dev mode: using source tree models directory");
             return Some(dev_models);
         }
     }
 
     if let Some(dir) = resource_dir.and_then(resolve_resource_models_dir) {
-        log::info!("Tauri resource dir: using models dir: {}", dir.display());
+        log::info!("Tauri resource directory contains bundled models");
         return Some(dir);
     }
 
-    if let Some(resource_dir) = resource_dir {
-        let models_dir = resource_dir.join("models");
-        log::warn!(
-            "Tauri resource dir resolved but models dir is missing: {}",
-            models_dir.display()
-        );
+    if resource_dir.is_some() {
+        log::warn!("Tauri resource directory resolved but models directory is missing");
     }
 
     None
@@ -573,7 +559,7 @@ fn discover_from_directory(dir: &Path) -> Result<Vec<DiscoveredModel>, String> {
     let catalog_path = dir.join("model_catalog.json");
     if catalog_path.exists() {
         let json = std::fs::read_to_string(&catalog_path)
-            .map_err(|e| format!("Failed to read {}: {}", catalog_path.display(), e))?;
+            .map_err(|e| format!("Failed to read model catalog: {}", e))?;
 
         let entries = parse_catalog(&json)?;
 
@@ -666,8 +652,8 @@ fn discover_from_directory(dir: &Path) -> Result<Vec<DiscoveredModel>, String> {
 
     // Phase 2: Uncataloged GGUF file discovery (with shard support)
     if dir.is_dir() {
-        let entries = std::fs::read_dir(dir)
-            .map_err(|e| format!("Failed to read directory {}: {}", dir.display(), e))?;
+        let entries =
+            std::fs::read_dir(dir).map_err(|e| format!("Failed to read model directory: {}", e))?;
 
         // Temporary struct for collecting GGUF file info
         struct GgufFile {
@@ -807,7 +793,7 @@ fn discover_from_directory(dir: &Path) -> Result<Vec<DiscoveredModel>, String> {
         }
 
         for entry in std::fs::read_dir(dir)
-            .map_err(|e| format!("Failed to read directory {}: {}", dir.display(), e))?
+            .map_err(|e| format!("Failed to read model directory: {}", e))?
             .filter_map(|entry| entry.ok())
         {
             let path = entry.path();

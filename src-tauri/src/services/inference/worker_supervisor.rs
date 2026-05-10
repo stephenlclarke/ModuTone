@@ -354,10 +354,7 @@ impl WorkerSupervisor {
 
             if !inner.worker_binary_path.exists() {
                 inner.state = WorkerProcessState::Stopped;
-                return Err(format!(
-                    "Worker binary not found at: {}",
-                    inner.worker_binary_path.display()
-                ));
+                return Err("Worker binary not found next to the app executable".to_string());
             }
 
             let mut cmd = tokio::process::Command::new(&inner.worker_binary_path);
@@ -1014,9 +1011,7 @@ mod tests {
             "model_invalid"
         );
         assert_eq!(
-            classify_model_load_error(
-                "Failed to load model from '/path/model.gguf': null result from llama cpp"
-            ),
+            classify_model_load_error("Failed to load model 'qwen': null result from llama cpp"),
             "model_invalid"
         );
     }

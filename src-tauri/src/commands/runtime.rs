@@ -94,7 +94,7 @@ pub async fn runtime_warm_model(
                 "Model '{}' is in the catalog but the model files are not present or supported",
                 request.model_id
             ),
-            detail: Some(format!("Expected at: {}", model.model_path.display())),
+            detail: Some("Install or download the selected model before warming it.".to_string()),
             subsystem: "inference".to_string(),
         });
     }

@@ -217,8 +217,8 @@ impl MlxAdapter {
         let path = Path::new(model_path);
         if !path.is_dir() {
             return Err(format!(
-                "MLX model directory does not exist: {}",
-                model_path
+                "MLX model directory does not exist for model '{}'",
+                model_id
             ));
         }
 
@@ -235,13 +235,7 @@ impl MlxAdapter {
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
             .spawn()
-            .map_err(|e| {
-                format!(
-                    "Failed to start MLX Python bridge with '{}': {}",
-                    python.display(),
-                    e
-                )
-            })?;
+            .map_err(|e| format!("Failed to start MLX Python bridge: {}", e))?;
 
         let stdin = child
             .stdin

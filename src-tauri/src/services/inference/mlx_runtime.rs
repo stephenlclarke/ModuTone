@@ -95,15 +95,12 @@ impl MlxRuntimeManager {
             *manager.active.lock().await = false;
 
             match result {
-                Ok(python_path) => {
+                Ok(_) => {
                     emit_progress(
                         &app,
                         MlxRuntimeInstallStatus::Completed,
                         "completed",
-                        Some(format!(
-                            "MLX runtime installed at {}",
-                            python_path.display()
-                        )),
+                        Some("MLX runtime installed".to_string()),
                         None,
                     );
                 }
@@ -143,27 +140,20 @@ impl MlxRuntimeManager {
         if let Some(parent) = install_dir.parent() {
             tokio::fs::create_dir_all(parent)
                 .await
-                .map_err(|e| format!("Failed to create {}: {}", parent.display(), e))?;
+                .map_err(|e| format!("Failed to create MLX runtime directory: {}", e))?;
         }
 
         emit_progress(
             app,
             MlxRuntimeInstallStatus::Installing,
             "creating_venv",
-            Some(format!(
-                "Creating Python environment with {}",
-                bootstrap_python.display()
-            )),
+            Some("Creating Python environment".to_string()),
             None,
         );
 
         if python_path.is_file() && !python_is_supported_version(&python_path).await {
             tokio::fs::remove_dir_all(&install_dir).await.map_err(|e| {
-                format!(
-                    "Failed to remove unsupported MLX Python environment {}: {}",
-                    install_dir.display(),
-                    e
-                )
+                format!("Failed to remove unsupported MLX Python environment: {}", e)
             })?;
         }
 
