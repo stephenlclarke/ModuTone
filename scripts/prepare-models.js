@@ -67,9 +67,7 @@ for (const file of ggufFiles) {
 }
 
 console.log();
-console.log(
-  `Models: ${validCount} valid, ${skippedCount} truncated/invalid`,
-);
+console.log(`Models: ${validCount} valid, ${skippedCount} truncated/invalid`);
 
 if (skippedCount > 0) {
   console.warn(
@@ -78,4 +76,11 @@ if (skippedCount > 0) {
   console.warn(
     "Re-download the full model files to include them in the distribution.",
   );
+}
+
+if (validCount === 0) {
+  console.error(
+    "\nERROR: No valid GGUF model files found. Packaging requires at least one valid model file.",
+  );
+  process.exit(1);
 }
