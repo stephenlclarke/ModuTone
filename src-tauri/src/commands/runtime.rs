@@ -116,7 +116,7 @@ pub async fn runtime_warm_model(
 
     if let Err(e) = supervisor.send_to_worker(&msg).await {
         // Revert state on send failure
-        supervisor.transition_idle_if_busy().await;
+        supervisor.transition_idle_if_warming().await;
         return Err(IpcError {
             code: "WORKER_SEND_FAILED".to_string(),
             message: "Failed to send load_model to worker".to_string(),

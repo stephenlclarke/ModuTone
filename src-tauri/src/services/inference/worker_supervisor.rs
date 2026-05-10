@@ -184,6 +184,14 @@ impl WorkerSupervisor {
         }
     }
 
+    /// Transition worker state to Idle if currently Warming.
+    pub async fn transition_idle_if_warming(&self) {
+        let mut inner = self.inner.lock().await;
+        if inner.state == WorkerProcessState::Warming {
+            inner.state = WorkerProcessState::Idle;
+        }
+    }
+
     /// Transition worker state to Warming (called by warm_model command).
     pub async fn set_warming(&self) -> Result<(), String> {
         let mut inner = self.inner.lock().await;
@@ -835,6 +843,19 @@ mod tests {
         sup.inner.lock().await.state = WorkerProcessState::Warming;
         sup.transition_idle_if_busy().await;
         assert_eq!(sup.get_state().await, WorkerProcessState::Warming);
+    }
+
+    #[tokio::test]
+    async fn supervisor_transition_idle_if_warming() {
+        let sup = WorkerSupervisor::new(PathBuf::from("/nonexistent"));
+
+        sup.inner.lock().await.state = WorkerProcessState::Warming;
+        sup.transition_idle_if_warming().await;
+        assert_eq!(sup.get_state().await, WorkerProcessState::Idle);
+
+        sup.inner.lock().await.state = WorkerProcessState::Busy;
+        sup.transition_idle_if_warming().await;
+        assert_eq!(sup.get_state().await, WorkerProcessState::Busy);
     }
 
     #[tokio::test]
