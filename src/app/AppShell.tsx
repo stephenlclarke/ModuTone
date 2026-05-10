@@ -301,7 +301,8 @@ export function AppShell() {
       confirmReGenerate();
       useAppStore.getState().handleGenerationCommandFailed(tabId, {
         code: "MODEL_NOT_READY",
-        message: "No model is loaded. Select and warm a model before generating.",
+        message:
+          "No model is loaded. Select and warm a model before generating.",
         subsystem: "inference",
       });
       return;

@@ -33,8 +33,7 @@ export function RefineButton({ tabId }: { tabId: string }) {
     loadedModelId && (loadedModelId === selectedModelId || isFallbackActive)
       ? loadedModelId
       : null;
-  const modelReady =
-    workerState === "idle" && activeGenerationModelId !== null;
+  const modelReady = workerState === "idle" && activeGenerationModelId !== null;
 
   const activeTagIds = useMemo(
     () => activeTab?.activeTagIds ?? [],
