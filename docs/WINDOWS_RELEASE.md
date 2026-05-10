@@ -20,7 +20,7 @@ ModuTone v1.0.0 targets Windows 11 x64 as the primary verified platform.
 ## Installer Flow
 
 1. User downloads `ModuTone-Setup.exe` and `ModuTone-Setup.7z`
-2. Running the `.exe` extracts the companion `.7z` archive
+2. Running the `.exe` extracts the companion `.7z` archive using an embedded, companion, or installed 7-Zip executable
 3. The NSIS installer runs, installing the application
 4. Post-install hook copies model files from the extraction directory to the installation directory
 5. Application is ready — models are available immediately
@@ -56,4 +56,4 @@ The installer includes both models. ModuTone auto-detects system RAM and indicat
 The Windows build requires these tools (not included in the repository):
 
 - **7-Zip** (`C:\Program Files\7-Zip\7z.exe`) — Used by `create-sfx-installer.js` to create the SFX archive
-- **SFX stub binary** — Built from `tools/sfx-stub/` source
+- **SFX stub binary** — Built from `tools/sfx-stub/` source. Default stub builds do not require a checked-in extractor binary; they find 7-Zip from `MODUTONE_7ZA_PATH`, `SEVEN_ZIP_PATH`, a companion `7za.exe`/`7z.exe`, common install paths, or `PATH`. Build with `--features embedded-7za` to embed a local `tools/7za.exe`.

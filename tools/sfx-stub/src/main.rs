@@ -5,10 +5,14 @@
 // **External payload** (preferred for large installers >4 GiB total):
 //   Looks for {exe_stem}.7z next to this exe. No PE size limit.
 //
-// **Embedded payload** (for self-contained SFX <4 GiB):
+// **Embedded payload** (for SFX <4 GiB):
 //   [this PE binary]
 //   [7z archive]
 //   [8-byte LE: offset where the 7z archive starts]
+//
+// The 7-Zip extractor is resolved at runtime. Default builds look for an
+// installed or companion 7z/7za executable; release builds may embed
+// tools/7za.exe by enabling the `embedded-7za` Cargo feature.
 //
 // After extracting the archive, two modes based on contents:
 //
@@ -31,13 +35,18 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Standalone 7za.exe (64-bit) embedded at compile time.
-const SEVEN_ZA: &[u8] = include_bytes!("../../7za.exe");
+/// Standalone 7za.exe (64-bit), embedded only for release builds that
+/// explicitly enable the `embedded-7za` feature and provide tools/7za.exe.
+#[cfg(feature = "embedded-7za")]
+const EMBEDDED_SEVEN_ZA: &[u8] = include_bytes!("../../7za.exe");
 
 fn main() {
     // Log to file for debugging
     let log_path = env::temp_dir().join("modutone-sfx-log.txt");
-    let _ = fs::write(&log_path, format!("SFX stub started at {:?}\n", std::time::SystemTime::now()));
+    let _ = fs::write(
+        &log_path,
+        format!("SFX stub started at {:?}\n", std::time::SystemTime::now()),
+    );
 
     match run() {
         Ok(()) => {
@@ -96,49 +105,55 @@ fn run() -> Result<(), String> {
     // Create temp directory
     let temp_base = env::temp_dir();
     let temp_dir = temp_base.join(format!("ModuTone-Setup-{}", std::process::id()));
-    fs::create_dir_all(&temp_dir)
-        .map_err(|e| format!("Cannot create temp directory: {e}"))?;
+    fs::create_dir_all(&temp_dir).map_err(|e| format!("Cannot create temp directory: {e}"))?;
 
     log(&log_path, &format!("Temp dir: {}", temp_dir.display()));
 
     let _cleanup = CleanupGuard(temp_dir.clone());
 
-    // Write embedded 7za.exe to temp
-    let seven_za_path = temp_dir.join("7za.exe");
-    fs::write(&seven_za_path, SEVEN_ZA)
-        .map_err(|e| format!("Cannot write 7za.exe: {e}"))?;
+    let seven_za_path = resolve_7z_executable(&exe_path, &temp_dir)?;
+    log(
+        &log_path,
+        &format!("7z executable: {}", seven_za_path.display()),
+    );
 
     // Determine archive source: external .7z file or embedded payload
     let archive_path;
 
     if let Some(ext_archive) = find_external_archive(&exe_path) {
         // External payload mode — companion .7z file next to exe
-        log(&log_path, &format!("External payload: {}", ext_archive.display()));
+        log(
+            &log_path,
+            &format!("External payload: {}", ext_archive.display()),
+        );
         archive_path = ext_archive;
     } else if let Some((offset, size)) = find_embedded_payload(&exe_path) {
         // Embedded payload mode — extract from own exe
-        log(&log_path, &format!("Embedded payload: offset={offset}, size={size}"));
-        let mut file = fs::File::open(&exe_path)
-            .map_err(|e| format!("Cannot open own exe: {e}"))?;
+        log(
+            &log_path,
+            &format!("Embedded payload: offset={offset}, size={size}"),
+        );
+        let mut file =
+            fs::File::open(&exe_path).map_err(|e| format!("Cannot open own exe: {e}"))?;
         let temp_archive = temp_dir.join("payload.7z");
         extract_payload(&mut file, offset, size, &temp_archive)?;
         log(&log_path, "Extracted embedded payload to temp");
         archive_path = temp_archive;
     } else {
-        return Err(
-            "No installer payload found.\n\n\
+        return Err("No installer payload found.\n\n\
              If this is an external-payload installer, make sure the .7z file \
              is in the same folder as this .exe."
-                .into(),
-        );
+            .into());
     }
 
     // Run 7za.exe to extract the archive
     let extract_dir = temp_dir.join("contents");
-    fs::create_dir_all(&extract_dir)
-        .map_err(|e| format!("Cannot create extract dir: {e}"))?;
+    fs::create_dir_all(&extract_dir).map_err(|e| format!("Cannot create extract dir: {e}"))?;
 
-    log(&log_path, &format!("Extracting {} ...", archive_path.display()));
+    log(
+        &log_path,
+        &format!("Extracting {} ...", archive_path.display()),
+    );
 
     let status = Command::new(&seven_za_path)
         .args([
@@ -163,13 +178,19 @@ fn run() -> Result<(), String> {
     // List extracted contents
     if let Ok(entries) = fs::read_dir(&extract_dir) {
         for entry in entries.flatten() {
-            log(&log_path, &format!("  extracted: {}", entry.path().display()));
+            log(
+                &log_path,
+                &format!("  extracted: {}", entry.path().display()),
+            );
         }
     }
 
     // Decide mode based on extracted contents
     if let Some(installer) = find_installer(&extract_dir) {
-        log(&log_path, &format!("Installer mode: {}", installer.display()));
+        log(
+            &log_path,
+            &format!("Installer mode: {}", installer.display()),
+        );
         // ── Installer mode ──
         let install_status = Command::new(&installer)
             .current_dir(&extract_dir)
@@ -187,6 +208,102 @@ fn run() -> Result<(), String> {
     Ok(())
 }
 
+/// Resolve the 7-Zip executable used to extract payload archives.
+///
+/// Default builds do not require a checked-in `tools/7za.exe`, so this first
+/// uses an embedded copy when the optional feature is enabled, then falls back
+/// to environment variables, companion files, common Windows install paths, and
+/// finally commands available on PATH.
+fn resolve_7z_executable(exe_path: &Path, temp_dir: &Path) -> Result<PathBuf, String> {
+    #[cfg(feature = "embedded-7za")]
+    {
+        let seven_za_path = temp_dir.join("7za.exe");
+        fs::write(&seven_za_path, EMBEDDED_SEVEN_ZA)
+            .map_err(|e| format!("Cannot write embedded 7za.exe: {e}"))?;
+        return Ok(seven_za_path);
+    }
+
+    #[cfg(not(feature = "embedded-7za"))]
+    {
+        let _ = temp_dir;
+    }
+
+    for var in ["MODUTONE_7ZA_PATH", "SEVEN_ZIP_PATH"] {
+        if let Ok(value) = env::var(var) {
+            let path = PathBuf::from(value);
+            if path.is_file() {
+                return Ok(path);
+            }
+        }
+    }
+
+    if let Some(dir) = exe_path.parent() {
+        for name in ["7za.exe", "7z.exe", "7za", "7z"] {
+            let path = dir.join(name);
+            if path.is_file() {
+                return Ok(path);
+            }
+        }
+    }
+
+    for path in common_7z_paths() {
+        if path.is_file() {
+            return Ok(path);
+        }
+    }
+
+    for command in ["7za", "7z", "7za.exe", "7z.exe"] {
+        if command_exists_on_path(command) {
+            return Ok(PathBuf::from(command));
+        }
+    }
+
+    Err("7-Zip executable not found.\n\n\
+         Place 7za.exe or 7z.exe next to this installer, install 7-Zip, \
+         or set MODUTONE_7ZA_PATH to the extractor executable."
+        .into())
+}
+
+fn common_7z_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+
+    if let Ok(program_files) = env::var("ProgramFiles") {
+        paths.push(PathBuf::from(program_files).join("7-Zip").join("7z.exe"));
+    }
+    if let Ok(program_files_x86) = env::var("ProgramFiles(x86)") {
+        paths.push(
+            PathBuf::from(program_files_x86)
+                .join("7-Zip")
+                .join("7z.exe"),
+        );
+    }
+
+    paths.push(PathBuf::from(r"C:\Program Files\7-Zip\7z.exe"));
+    paths
+}
+
+fn command_exists_on_path(command: &str) -> bool {
+    let Some(path_var) = env::var_os("PATH") else {
+        return false;
+    };
+
+    env::split_paths(&path_var).any(|dir| {
+        let candidate = dir.join(command);
+        if candidate.is_file() {
+            return true;
+        }
+
+        #[cfg(windows)]
+        {
+            if Path::new(command).extension().is_none() {
+                return dir.join(format!("{command}.exe")).is_file();
+            }
+        }
+
+        false
+    })
+}
+
 /// Stream the archive portion from the exe to a temp file.
 fn extract_payload(
     file: &mut fs::File,
@@ -197,8 +314,7 @@ fn extract_payload(
     file.seek(SeekFrom::Start(offset))
         .map_err(|e| format!("Seek to payload failed: {e}"))?;
 
-    let mut out =
-        fs::File::create(dest).map_err(|e| format!("Cannot create payload file: {e}"))?;
+    let mut out = fs::File::create(dest).map_err(|e| format!("Cannot create payload file: {e}"))?;
 
     let mut remaining = size;
     let mut buf = vec![0u8; 1024 * 1024];
@@ -239,8 +355,7 @@ fn install_addon_models(extract_dir: &Path) -> Result<(), String> {
     let install_dir = find_install_dir()?;
     let models_dir = install_dir.join("models");
 
-    fs::create_dir_all(&models_dir)
-        .map_err(|e| format!("Cannot create models directory: {e}"))?;
+    fs::create_dir_all(&models_dir).map_err(|e| format!("Cannot create models directory: {e}"))?;
 
     // Look for .gguf files in extract_dir and extract_dir/models/
     let mut copied = 0u32;
@@ -296,11 +411,9 @@ fn find_install_dir() -> Result<PathBuf, String> {
         }
     }
 
-    Err(
-        "ModuTone installation not found.\n\n\
+    Err("ModuTone installation not found.\n\n\
          Please install ModuTone first, then run this addon installer."
-            .into(),
-    )
+        .into())
 }
 
 /// Show a Windows message box for errors.
@@ -322,12 +435,8 @@ fn show_message_box(msg: &str, title: &str, flags: u32) {
 
         #[link(name = "user32")]
         extern "system" {
-            fn MessageBoxW(
-                hwnd: *mut (),
-                text: *const u16,
-                caption: *const u16,
-                utype: u32,
-            ) -> i32;
+            fn MessageBoxW(hwnd: *mut (), text: *const u16, caption: *const u16, utype: u32)
+                -> i32;
         }
 
         let text: Vec<u16> = OsStr::new(msg).encode_wide().chain(Some(0)).collect();

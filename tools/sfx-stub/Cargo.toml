@@ -3,6 +3,10 @@ name = "sfx-stub"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+embedded-7za = []
+
 [profile.release]
 opt-level = "s"
 strip = true

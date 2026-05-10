@@ -94,6 +94,7 @@ npm run package:installer
 The SFX installer requires:
 - 7-Zip installed at `C:\Program Files\7-Zip\7z.exe`
 - SFX stub built from `tools/sfx-stub/` (run `cargo build --release` in that directory)
+- At install time, either 7-Zip installed on the target machine or `7za.exe`/`7z.exe` next to the launcher. To produce a launcher with an embedded extractor, place `tools/7za.exe` locally and build the stub with `cargo build --release --features embedded-7za`.
 
 ## Development Workflow
 

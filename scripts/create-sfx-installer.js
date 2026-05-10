@@ -8,8 +8,9 @@
 //   ModuTone_<ver>_x64-setup.exe  — small SFX launcher (~2 MB)
 //   ModuTone_<ver>_x64-setup.7z   — payload archive (no size limit)
 //
-// The user runs setup.exe. It finds the companion .7z, extracts it
-// to temp, and runs the NSIS installer. The NSIS POSTINSTALL hook
+// The user runs setup.exe. It finds the companion .7z or embedded
+// payload, extracts it to temp with an installed or companion 7-Zip
+// executable, and runs the NSIS installer. The NSIS POSTINSTALL hook
 // copies model files from the extracted directory into the install dir.
 //
 // File layout (self-contained SFX, when payload fits):
@@ -21,6 +22,10 @@
 //   npm run build                              (produces the NSIS installer)
 //   7-Zip installed                            (C:\Program Files\7-Zip\7z.exe)
 //   tools/sfx-stub/target/release/sfx-stub.exe (64-bit SFX stub)
+//     Default stub builds need 7-Zip installed or a companion 7za.exe/7z.exe
+//     next to the launcher at install time. Build the stub with
+//     `--features embedded-7za` to embed tools/7za.exe when that file is
+//     available locally.
 //
 // Usage:
 //   node scripts/create-sfx-installer.js
