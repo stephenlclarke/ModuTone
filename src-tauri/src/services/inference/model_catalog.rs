@@ -158,10 +158,7 @@ fn resolve_bundled_models_dir() -> Option<PathBuf> {
             // Linux DEB: exe in /usr/bin/, resources in /usr/lib/{product}/
             let linux_lib = dir.join("..").join("lib").join("modutone").join("models");
             if linux_lib.is_dir() {
-                log::info!(
-                    "Linux package: using lib dir: {}",
-                    linux_lib.display()
-                );
+                log::info!("Linux package: using lib dir: {}", linux_lib.display());
                 return Some(linux_lib);
             }
         }
