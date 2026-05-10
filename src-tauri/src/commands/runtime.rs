@@ -6,26 +6,42 @@ use crate::contracts::commands::{RuntimeStatusResponse, WarmModelRequest};
 use crate::contracts::errors::IpcError;
 use crate::services::inference::model_catalog::ModelRegistry;
 use crate::services::inference::worker_protocol::WorkerInbound;
-use crate::services::inference::worker_supervisor::WorkerSupervisor;
+use crate::services::inference::worker_supervisor::{WorkerProcessState, WorkerSupervisor};
+use crate::services::persistence::metadata_store::MetadataStore;
 use crate::services::platform::window_privacy::PlatformCapabilities;
+
+fn runtime_status_response(
+    state: WorkerProcessState,
+    loaded_model_id: Option<String>,
+    metadata_store_writable: bool,
+    capabilities: &PlatformCapabilities,
+) -> RuntimeStatusResponse {
+    RuntimeStatusResponse {
+        app_state: state.to_app_state(),
+        worker_state: state.to_worker_state(),
+        loaded_model_id,
+        metadata_store_writable,
+        privacy_blackout_supported: capabilities.privacy_blackout_supported,
+        tray_supported: false,
+        launch_at_login_supported: false,
+    }
+}
 
 #[tauri::command]
 pub async fn runtime_get_status(
     supervisor: State<'_, WorkerSupervisor>,
     capabilities: State<'_, PlatformCapabilities>,
+    metadata_store: State<'_, MetadataStore>,
 ) -> Result<RuntimeStatusResponse, IpcError> {
     let state = supervisor.get_state().await;
     let loaded_model = supervisor.get_loaded_model_id().await;
 
-    Ok(RuntimeStatusResponse {
-        app_state: state.to_app_state(),
-        worker_state: state.to_worker_state(),
-        loaded_model_id: loaded_model,
-        metadata_store_writable: true,
-        privacy_blackout_supported: capabilities.privacy_blackout_supported,
-        tray_supported: false,
-        launch_at_login_supported: false,
-    })
+    Ok(runtime_status_response(
+        state,
+        loaded_model,
+        !metadata_store.is_read_only(),
+        &capabilities,
+    ))
 }
 
 #[tauri::command]
@@ -97,4 +113,28 @@ pub async fn runtime_warm_model(
     supervisor.emit_status_changed(&app, None).await;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::contracts::shared::{AppState, WorkerState};
+
+    #[test]
+    fn runtime_status_response_reports_read_only_metadata_store() {
+        let response = runtime_status_response(
+            WorkerProcessState::Idle,
+            Some("test-model".to_string()),
+            false,
+            &PlatformCapabilities::unsupported(),
+        );
+
+        assert_eq!(response.app_state, AppState::Ready);
+        assert_eq!(response.worker_state, WorkerState::Idle);
+        assert_eq!(response.loaded_model_id.as_deref(), Some("test-model"));
+        assert!(!response.metadata_store_writable);
+        assert!(!response.privacy_blackout_supported);
+        assert!(!response.tray_supported);
+        assert!(!response.launch_at_login_supported);
+    }
 }
