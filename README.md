@@ -1,4 +1,5 @@
 [README.md](https://github.com/user-attachments/files/27538091/README.md)
+
 # ModuTone
 
 A privacy-first, local-only desktop writing refinement application. ModuTone runs large language models entirely on your machine — no cloud services, no data collection, no network requests. Your writing never leaves your device.
@@ -32,6 +33,27 @@ ModuTone uses a three-process architecture:
 
 The frontend communicates with the backend through Tauri's IPC command system (17 commands). The backend manages a worker sidecar process over stdin/stdout JSON Lines protocol.
 
+## Workflow
+
+```mermaid
+flowchart TD
+    A[Writer enters text] --> B[Select profile, tags, and model]
+    B --> C{Model ready?}
+    C -- No --> D[Warm selected GGUF model]
+    D --> E[Worker sidecar loads model]
+    E --> F[Ready for generation]
+    C -- Yes --> F
+    F --> G[Generate or refine]
+    G --> H[React state sends Tauri IPC command]
+    H --> I[Rust backend validates request and composes prompt]
+    I --> J[Worker runs llama.cpp inference locally]
+    J --> K[Backend emits generation events]
+    K --> L[Frontend updates accepted output or proposal]
+    L --> M{Refine again?}
+    M -- Yes --> G
+    M -- No --> N[Accept, copy, or clear output]
+```
+
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full technical breakdown.
 
 ## Installation
@@ -47,11 +69,11 @@ See [docs/INSTALLATION.md](docs/INSTALLATION.md) for detailed instructions.
 
 ## System Requirements
 
-| Requirement | Minimum                                                         |
-| ----------- | --------------------------------------------------------------- |
-| OS          | Windows 11 x64                                                  |
+| Requirement | Minimum                             |
+| ----------- | ----------------------------------- |
+| OS          | Windows 11 x64                      |
 | RAM         | 8 GB (3B model) / 24 GB (14B model) |
-| Disk        | ~3 GB for app + models                                          |
+| Disk        | ~3 GB for app + models              |
 
 ModuTone auto-detects available RAM and shows which models are suitable for your system.
 
