@@ -8,6 +8,10 @@ dist/
 dist-bundle/
 *.tsbuildinfo
 
+# Test artifacts
+test-results/
+playwright-report/
+
 # Tauri auto-generated
 src-tauri/gen/
 
