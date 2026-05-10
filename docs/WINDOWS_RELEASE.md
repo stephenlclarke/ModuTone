@@ -4,56 +4,83 @@ ModuTone v1.0.0 targets Windows 11 x64 as the primary verified platform.
 
 ## Platform Status
 
-| Platform | Status | Installer |
-|----------|--------|-----------|
-| Windows 11 x64 | Verified | NSIS + SFX self-extracting archive |
-| macOS | Build configs present | DMG (untested) |
-| Linux | Build configs present | AppImage, deb (untested) |
+| Platform | Status | Artifact |
+| --- | --- | --- |
+| Windows 11 x64 | Verified release target | NSIS plus SFX payload |
+| macOS | Build and test path configured | DMG |
+| Linux | Build and test path configured | AppImage and deb |
 
 ## Windows Build Details
 
-- **Installer:** NSIS (Nullsoft Scriptable Install System) via Tauri's built-in bundler
-- **Model delivery:** Self-extracting 7z archive (SFX stub) wrapping the NSIS installer and GGUF model files
-- **Architecture:** x86_64 only
-- **Minimum OS:** Windows 10 (Tauri 2 WebView2 requirement); tested on Windows 11
+- Installer: NSIS through Tauri's bundler.
+- Model delivery: 7z payload handled by the Rust SFX launcher.
+- Architecture: x86_64.
+- Minimum expected OS: Windows 10 with WebView2.
+- Verified OS: Windows 11.
+
+## Release Files
+
+The current model payload exceeds the Windows PE single-file size limit, so the
+release uses an external payload pair:
+
+- `ModuTone_1.0.0_x64-setup.exe`
+- `ModuTone_1.0.0_x64-setup.7z`
+
+Both files must stay in the same folder. The user runs the `.exe`.
 
 ## Installer Flow
 
-1. User downloads `ModuTone-Setup.exe` and `ModuTone-Setup.7z`
-2. Running the `.exe` extracts the companion `.7z` archive
-3. The NSIS installer runs, installing the application
-4. Post-install hook copies model files from the extraction directory to the installation directory
-5. Application is ready — models are available immediately
+1. The launcher finds the companion `.7z` payload.
+2. It extracts the payload with an embedded, companion, or installed 7-Zip.
+3. The NSIS installer runs.
+4. The NSIS post-install hook copies `models/*.gguf` into `$INSTDIR\models`.
+5. The app starts with bundled models available.
 
-The SFX stub source code is included in `tools/sfx-stub/` for reproducibility.
+The SFX launcher source is in `tools/sfx-stub/`.
 
 ## NSIS Hooks
 
-Custom NSIS hooks (`src-tauri/nsis/hooks.nsh`) handle:
+Custom hooks live in `src-tauri/nsis/hooks.nsh`.
 
-- **Post-install:** Copy `*.gguf` model files from `$EXEDIR\models\` to `$INSTDIR\models\`
-- **Pre-uninstall:** Remove bundled models. Prompt user about app data removal (defaults to keeping user data).
+Post-install:
+
+- Copy GGUF files from `$EXEDIR\models\` to `$INSTDIR\models\`.
+
+Pre-uninstall:
+
+- Remove bundled model files from `$INSTDIR\models`.
+- Prompt before deleting user data.
+- Keep user data by default.
 
 ## App Data Location
 
-```
+```text
 %APPDATA%\com.modutone.desktop\
 ```
 
-Contains settings, profiles, custom tags, and logs. No user content.
+This directory contains settings, profiles, custom tags, and redacted logs. It
+does not contain writing content or generated output.
 
 ## Bundled Models
 
-| Model | Quantization | Size |
-|-------|-------------|------|
-| Qwen 2.5 3B Instruct | Q5_K_M | ~2.3 GB |
-| Qwen 2.5 14B Instruct | Q5_K_M | ~2.6 GB |
+| Model | Quantization | Catalog size |
+| --- | --- | --- |
+| Qwen 2.5 3B Instruct | Q5_K_M | 2.44 GB |
+| Qwen 2.5 14B Instruct | Q5_K_M | 2.74 GB |
 
-The installer includes both models. ModuTone auto-detects system RAM and indicates which models are suitable.
+ModuTone detects system RAM and labels each model as recommended, caution, or
+unsupported.
 
-## External Dependencies
+## Build Dependencies
 
-The Windows build requires these tools (not included in the repository):
+The Windows packaging workflow requires tools that are not committed to the
+repository:
 
-- **7-Zip** (`C:\Program Files\7-Zip\7z.exe`) — Used by `create-sfx-installer.js` to create the SFX archive
-- **SFX stub binary** — Built from `tools/sfx-stub/` source
+| Tool | Purpose |
+| --- | --- |
+| 7-Zip | Archive creation and optional install-time extraction |
+| SFX launcher binary | Built from `tools/sfx-stub/` |
+| Optional `7za.exe` | Embedded extractor build input |
+
+The default launcher can find 7-Zip through `MODUTONE_7ZA_PATH`,
+`SEVEN_ZIP_PATH`, a companion executable, common install paths, or `PATH`.

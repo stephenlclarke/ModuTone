@@ -1,129 +1,255 @@
 # Build from Source
 
+This guide covers development, clean local builds, and platform packaging for
+Windows, macOS, and Linux.
+
 ## Prerequisites
 
 | Tool | Version | Purpose |
-|------|---------|---------|
-| Node.js | 24+ | Frontend build, scripts |
-| npm | (bundled with Node) | Package management |
-| Rust | stable | Backend and worker compilation |
-| Tauri CLI | v2 | Desktop app bundling |
-| Clippy | (Rust component) | Lint checks |
-| rustfmt | (Rust component) | Format checks |
+| --- | --- | --- |
+| Node.js | 20 or newer | Frontend build and scripts |
+| npm | Bundled with Node | Package management |
+| Rust | stable | Backend and worker builds |
+| Clippy | Rust component | Rust linting |
+| rustfmt | Rust component | Rust formatting |
 
-### Install Tauri CLI
+CI currently uses Node.js 24. A clean macOS build was verified with Node.js
+20.20.2, npm 10.8.2, and Rust 1.95 on Apple Silicon.
+
+The Tauri CLI is installed as a project dev dependency. Use the npm scripts
+instead of requiring a global Tauri install.
+
+## Platform Dependencies
+
+### macOS
+
+Install Xcode Command Line Tools:
 
 ```bash
-npm install -g @tauri-apps/cli
+xcode-select --install
 ```
 
-### Linux-only system dependencies
+Verify they are available:
 
 ```bash
-sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+xcode-select -p
 ```
+
+Install Rust with `rustup` or another stable toolchain provider, then ensure
+Clippy and rustfmt are available:
+
+```bash
+rustup component add clippy rustfmt
+```
+
+### Linux
+
+On Debian or Ubuntu based systems, install Tauri's WebKit dependencies:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev
+sudo apt-get install -y librsvg2-dev patchelf
+```
+
+### Windows
+
+Install:
+
+- Node.js 20 or newer.
+- Rust stable with the MSVC toolchain.
+- Microsoft C++ Build Tools or Visual Studio with C++ desktop tools.
+- WebView2 Runtime.
+- 7-Zip if you need to create Windows SFX release packages.
 
 ## Clone and Install
+
+For a reproducible checkout from the lockfile:
 
 ```bash
 git clone <repo-url>
 cd modutone
-npm install
+npm ci
 ```
 
-## Build Steps
+For day-to-day dependency updates, use `npm install` intentionally and commit
+any resulting lockfile change.
 
-### 1. Build the worker sidecar
-
-The worker is a separate Rust binary that must be compiled before the Tauri app:
+## Run in Development Mode
 
 ```bash
-# Release build
+npm run dev
+```
+
+The dev command builds the debug worker sidecar, starts Vite, and launches the
+Tauri app window.
+
+## Worker Sidecar
+
+The worker is a separate Rust binary. Build it directly when running Rust checks
+or when you want to verify sidecar generation:
+
+```bash
+# Release sidecar
 npm run build:sidecar
 
-# Or debug build for development
+# Debug sidecar for development and tests
 npm run build:sidecar:dev
 ```
 
-This compiles `src-worker/` and copies the binary to `src-tauri/binaries/` with the correct platform suffix (e.g., `modutone-worker-x86_64-pc-windows-msvc.exe`).
+The copy script writes the sidecar into `src-tauri/binaries/` with the current
+platform suffix, such as `modutone-worker-aarch64-apple-darwin`.
 
-### 2. Build the application
+`npm run build` also runs `npm run build:sidecar` through Tauri's
+`beforeBuildCommand`, so a separate sidecar build is not required for a normal
+production build.
+
+## Production Build
 
 ```bash
-# Development mode (hot reload)
-npm run dev
-
-# Production build
 npm run build
 ```
 
-`npm run build` runs `tauri build`, which:
-1. Compiles the frontend with Vite
-2. Compiles the Rust backend
-3. Bundles everything into a platform-specific installer (NSIS on Windows, DMG on macOS, AppImage/deb on Linux)
+This command:
 
-The output is in `src-tauri/target/release/bundle/`.
+1. Builds the release worker sidecar.
+2. Builds the frontend with Vite.
+3. Builds the Rust Tauri app.
+4. Bundles the platform artifact.
 
-### 3. Add model files (required for inference)
+Default build artifacts do not include large GGUF model weights. They can
+launch, but inference requires user-provided or bundled model files.
 
-This step is only needed when building from source. End users get models automatically via the installer.
+## Clean macOS Install
 
-Download quantized GGUF files from HuggingFace and place them in `src-tauri/resources/models/`:
-
-| Filename | Source |
-|----------|--------|
-| `qwen2.5-3b-instruct-q5_k_m.gguf` | [Qwen/Qwen2.5-3B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF) |
-| `qwen2.5-14b-instruct-q5_k_m.gguf` | [Qwen/Qwen2.5-14B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-GGUF) |
-
-Download the specific quantization variant listed (Q5_K_M or Q4_K_M) from each model's "Files and versions" tab on HuggingFace.
-
-The model catalog is at `src-tauri/resources/models/model_catalog.json`. ModuTone discovers models by matching filenames in this catalog.
-
-## Package with Models (Windows)
-
-To create a distributable installer with bundled models:
+Use this sequence to rebuild and install the app cleanly on macOS:
 
 ```bash
-# Validate model files, build, and create standalone bundle
-npm run package:bundle
+# Optional: quit and remove a previous local install.
+osascript -e 'tell application "ModuTone" to quit' || true
+rm -rf /Applications/ModuTone.app
 
-# Or create SFX self-extracting installer
-npm run package:installer
+# Optional: remove generated repo artifacts.
+rm -rf node_modules dist target src-tauri/binaries
+
+# Reinstall dependencies and build.
+npm ci
+npm run build
+
+# Install from the generated DMG.
+rm -rf /tmp/modutone-dmg
+mkdir -p /tmp/modutone-dmg
+hdiutil attach -nobrowse -readonly \
+  -mountpoint /tmp/modutone-dmg \
+  target/release/bundle/dmg/ModuTone_1.0.0_aarch64.dmg
+ditto /tmp/modutone-dmg/ModuTone.app /Applications/ModuTone.app
+hdiutil detach /tmp/modutone-dmg
+
+# Launch the installed app.
+open -n /Applications/ModuTone.app
 ```
 
-The SFX installer requires:
-- 7-Zip installed at `C:\Program Files\7-Zip\7z.exe`
-- SFX stub built from `tools/sfx-stub/` (run `cargo build --release` in that directory)
-
-## Development Workflow
+To reset local app metadata as part of a clean test install, remove the app data
+directory before launching:
 
 ```bash
-# Start development mode (frontend hot reload + Tauri window)
-npm run dev
+rm -rf "$HOME/Library/Application Support/com.modutone.desktop"
+```
 
-# Run frontend tests
-npm run test
+The macOS DMG build uses `target/release/bundle/macos/ModuTone.app` as a
+staging bundle while creating the DMG. That staging bundle may be cleaned by the
+bundler. Install from the generated DMG instead.
 
-# Run Rust tests
-cargo test --workspace
+On Apple Silicon, the generated DMG is:
 
-# Lint and format
+```text
+target/release/bundle/dmg/ModuTone_1.0.0_aarch64.dmg
+```
+
+On Intel macOS, expect the architecture suffix to differ.
+
+## Model Files
+
+Model files are required for inference and release packaging. The repository
+tracks `src-tauri/resources/models/model_catalog.json`, but not the large GGUF
+weights.
+
+Place valid model files in:
+
+```text
+src-tauri/resources/models/
+```
+
+Expected filenames:
+
+| Model | Filename |
+| --- | --- |
+| Qwen 2.5 3B Instruct | `qwen2.5-3b-instruct-q5_k_m.gguf` |
+| Qwen 2.5 14B Instruct | `qwen2.5-14b-instruct-q5_k_m.gguf` |
+
+Download the matching Q5_K_M GGUF variants from the upstream Qwen model pages
+on Hugging Face. The catalog checks filenames and rejects truncated files that
+are below the install-size threshold.
+
+Validate local model files with:
+
+```bash
+npm run prepare:models
+```
+
+This command fails when no valid GGUF files are present.
+
+## Packaging with Models
+
+Use these scripts only after valid model files are in place:
+
+```bash
+# Windows folder bundle
+npm run package:bundle
+
+# Windows SFX launcher plus payload archive
+npm run package:installer
+
+# Linux package with bundled models
+npm run package:linux
+
+# macOS package with bundled models
+npm run package:macos
+```
+
+The Windows SFX script requires:
+
+- 7-Zip available at `C:\Program Files\7-Zip\7z.exe`, or `SEVEN_ZIP_PATH` set.
+- The SFX stub built from `tools/sfx-stub/`.
+- A companion or installed extractor at install time.
+
+To embed the extractor in the launcher, place `tools/7za.exe` locally and build
+the stub with:
+
+```bash
+cargo build --release --features embedded-7za
+```
+
+## Validation
+
+```bash
+npm run typecheck
 npm run lint
 npm run format:check
+npm run test
 cargo fmt --check --all
-cargo clippy --workspace -- -D warnings
-
-# Type check
-npm run typecheck
+npm run lint:rust
+npm run test:rust
+npm run test:e2e
 ```
 
 ## Project Layout
 
 | Directory | Contents |
-|-----------|----------|
-| `src/` | React frontend (TypeScript, components, state, IPC) |
-| `src-tauri/` | Rust backend (Tauri app, commands, services, domain) |
-| `src-worker/` | Rust inference worker (llama.cpp sidecar) |
-| `tests/` | E2E (Playwright) and contract tests |
-| `scripts/` | Build and packaging Node.js scripts |
-| `tools/sfx-stub/` | SFX installer stub (Rust source) |
+| --- | --- |
+| `src/` | React frontend |
+| `src-tauri/` | Rust backend and Tauri app |
+| `src-worker/` | Rust inference worker |
+| `tests/` | E2E and contract tests |
+| `scripts/` | Build and packaging scripts |
+| `tools/sfx-stub/` | Rust SFX launcher source |
