@@ -3,9 +3,9 @@
 use tauri::State;
 
 use crate::contracts::commands::{
-    ProfileCreateRequest, ProfileCreateResponse, ProfileDeleteRequest, ProfileDeleteResponse,
-    ProfileResetRequest, ProfileResetResponse, ProfileUpdateRequest, ProfileUpdateResponse,
-    ProfilesListResponse,
+    ensure_contract_version, ProfileCreateRequest, ProfileCreateResponse, ProfileDeleteRequest,
+    ProfileDeleteResponse, ProfileResetRequest, ProfileResetResponse, ProfileUpdateRequest,
+    ProfileUpdateResponse, ProfilesListResponse,
 };
 use crate::contracts::errors::IpcError;
 use crate::services::persistence::metadata_store::MetadataStore;
@@ -23,6 +23,7 @@ pub async fn profiles_create(
     request: ProfileCreateRequest,
     store: State<'_, MetadataStore>,
 ) -> Result<ProfileCreateResponse, IpcError> {
+    ensure_contract_version(request.contract_version, "profiles")?;
     store.create_profile(&request)
 }
 
@@ -31,6 +32,7 @@ pub async fn profiles_update(
     request: ProfileUpdateRequest,
     store: State<'_, MetadataStore>,
 ) -> Result<ProfileUpdateResponse, IpcError> {
+    ensure_contract_version(request.contract_version, "profiles")?;
     store.update_profile(&request)?;
     Ok(ProfileUpdateResponse { updated: true })
 }
@@ -40,6 +42,7 @@ pub async fn profiles_delete(
     request: ProfileDeleteRequest,
     store: State<'_, MetadataStore>,
 ) -> Result<ProfileDeleteResponse, IpcError> {
+    ensure_contract_version(request.contract_version, "profiles")?;
     store.delete_profile(&request.id)?;
     Ok(ProfileDeleteResponse { deleted: true })
 }
@@ -49,6 +52,7 @@ pub async fn profiles_reset_to_default(
     request: ProfileResetRequest,
     store: State<'_, MetadataStore>,
 ) -> Result<ProfileResetResponse, IpcError> {
+    ensure_contract_version(request.contract_version, "profiles")?;
     store.reset_profile_to_default(&request.id)?;
     Ok(ProfileResetResponse { reset: true })
 }

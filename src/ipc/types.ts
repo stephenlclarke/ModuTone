@@ -3,7 +3,8 @@
 
 // --- Global ---
 
-export type ContractVersion = number; // current: 1
+export const CONTRACT_VERSION = 1 as const;
+export type ContractVersion = typeof CONTRACT_VERSION;
 
 export interface IpcError {
   code: string;

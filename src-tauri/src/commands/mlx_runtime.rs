@@ -3,7 +3,8 @@
 use tauri::{AppHandle, State};
 
 use crate::contracts::commands::{
-    MlxRuntimeInstallStartRequest, MlxRuntimeInstallStartResponse, MlxRuntimeStatusResponse,
+    ensure_contract_version, MlxRuntimeInstallStartRequest, MlxRuntimeInstallStartResponse,
+    MlxRuntimeStatusResponse,
 };
 use crate::contracts::errors::IpcError;
 use crate::services::inference::mlx_runtime::MlxRuntimeManager;
@@ -31,14 +32,7 @@ pub async fn mlx_runtime_install_start(
     manager: State<'_, MlxRuntimeManager>,
     request: MlxRuntimeInstallStartRequest,
 ) -> Result<MlxRuntimeInstallStartResponse, IpcError> {
-    if request.contract_version != 1 {
-        return Err(IpcError {
-            code: "INVALID_CONTRACT_VERSION".to_string(),
-            message: "Unsupported MLX runtime install contract version".to_string(),
-            detail: Some(request.contract_version.to_string()),
-            subsystem: "models".to_string(),
-        });
-    }
+    ensure_contract_version(request.contract_version, "models")?;
 
     let result = manager.start_install(app).await.map_err(|e| IpcError {
         code: "MLX_RUNTIME_INSTALL_FAILED_TO_START".to_string(),

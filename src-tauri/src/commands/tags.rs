@@ -3,8 +3,8 @@
 use tauri::State;
 
 use crate::contracts::commands::{
-    TagCreateRequest, TagCreateResponse, TagDeleteRequest, TagDeleteResponse, TagUpdateRequest,
-    TagUpdateResponse, TagsListResponse,
+    ensure_contract_version, TagCreateRequest, TagCreateResponse, TagDeleteRequest,
+    TagDeleteResponse, TagUpdateRequest, TagUpdateResponse, TagsListResponse,
 };
 use crate::contracts::errors::IpcError;
 use crate::services::persistence::metadata_store::MetadataStore;
@@ -23,6 +23,7 @@ pub async fn tags_create(
     request: TagCreateRequest,
     store: State<'_, MetadataStore>,
 ) -> Result<TagCreateResponse, IpcError> {
+    ensure_contract_version(request.contract_version, "tags")?;
     store.create_tag(&request)
 }
 
@@ -31,6 +32,7 @@ pub async fn tags_update(
     request: TagUpdateRequest,
     store: State<'_, MetadataStore>,
 ) -> Result<TagUpdateResponse, IpcError> {
+    ensure_contract_version(request.contract_version, "tags")?;
     store.update_tag(&request)?;
     Ok(TagUpdateResponse { updated: true })
 }
@@ -40,6 +42,7 @@ pub async fn tags_delete(
     request: TagDeleteRequest,
     store: State<'_, MetadataStore>,
 ) -> Result<TagDeleteResponse, IpcError> {
+    ensure_contract_version(request.contract_version, "tags")?;
     store.delete_tag(&request.id)?;
     Ok(TagDeleteResponse { deleted: true })
 }

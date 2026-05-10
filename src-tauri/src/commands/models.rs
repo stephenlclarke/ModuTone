@@ -6,8 +6,8 @@ use sysinfo::System;
 use tauri::{AppHandle, State};
 
 use crate::contracts::commands::{
-    ModelDownloadCancelRequest, ModelDownloadCancelResponse, ModelDownloadStartRequest,
-    ModelDownloadStartResponse, ModelEntry, ModelsListResponse,
+    ensure_contract_version, ModelDownloadCancelRequest, ModelDownloadCancelResponse,
+    ModelDownloadStartRequest, ModelDownloadStartResponse, ModelEntry, ModelsListResponse,
 };
 use crate::contracts::errors::IpcError;
 use crate::contracts::shared::ModelSuitability;
@@ -96,6 +96,7 @@ pub async fn model_download_start(
     manager: State<'_, ModelDownloadManager>,
     request: ModelDownloadStartRequest,
 ) -> Result<ModelDownloadStartResponse, IpcError> {
+    ensure_contract_version(request.contract_version, "models")?;
     let registry = registry.inner().clone();
     let result = manager
         .start(app, registry, request.model_id.clone())
@@ -119,6 +120,7 @@ pub async fn model_download_cancel(
     manager: State<'_, ModelDownloadManager>,
     request: ModelDownloadCancelRequest,
 ) -> Result<ModelDownloadCancelResponse, IpcError> {
+    ensure_contract_version(request.contract_version, "models")?;
     Ok(ModelDownloadCancelResponse {
         canceled: manager.cancel(&request.model_id).await,
     })

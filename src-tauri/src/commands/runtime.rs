@@ -4,7 +4,9 @@ use std::sync::{Arc, Mutex};
 
 use tauri::{AppHandle, State};
 
-use crate::contracts::commands::{RuntimeStatusResponse, WarmModelRequest};
+use crate::contracts::commands::{
+    ensure_contract_version, RuntimeStatusResponse, WarmModelRequest,
+};
 use crate::contracts::errors::IpcError;
 use crate::services::inference::model_catalog::{ModelBackend, ModelRegistry};
 use crate::services::inference::worker_protocol::WorkerInbound;
@@ -53,6 +55,7 @@ pub async fn runtime_warm_model(
     registry: State<'_, Arc<Mutex<ModelRegistry>>>,
     app: AppHandle,
 ) -> Result<(), IpcError> {
+    ensure_contract_version(request.contract_version, "inference")?;
     // Check if model is already loaded
     if let Some(ref loaded) = supervisor.get_loaded_model_id().await {
         if *loaded == request.model_id {

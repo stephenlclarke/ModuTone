@@ -5,10 +5,29 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use super::errors::IpcError;
 use super::shared::{
     AppState, ModelSuitability, MotionPreference, TagCategory, ThemePreference, VisualStyle,
     WorkerState,
 };
+
+pub const CONTRACT_VERSION: u32 = 1;
+
+pub fn ensure_contract_version(contract_version: u32, subsystem: &str) -> Result<(), IpcError> {
+    if contract_version == CONTRACT_VERSION {
+        return Ok(());
+    }
+
+    Err(IpcError {
+        code: "INVALID_CONTRACT_VERSION".to_string(),
+        message: format!(
+            "Unsupported IPC contract version {}; expected {}",
+            contract_version, CONTRACT_VERSION
+        ),
+        detail: Some(contract_version.to_string()),
+        subsystem: subsystem.to_string(),
+    })
+}
 
 // --- Settings ---
 
@@ -376,4 +395,23 @@ pub struct SetBooleanRequest {
 pub struct PlatformFeatureResponse {
     pub applied: bool,
     pub supported: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn contract_version_validator_accepts_current_version() {
+        assert!(ensure_contract_version(CONTRACT_VERSION, "test").is_ok());
+    }
+
+    #[test]
+    fn contract_version_validator_rejects_unsupported_version() {
+        let err = ensure_contract_version(CONTRACT_VERSION + 1, "test").unwrap_err();
+
+        assert_eq!(err.code, "INVALID_CONTRACT_VERSION");
+        assert_eq!(err.subsystem, "test");
+        assert!(err.message.contains("Unsupported IPC contract version"));
+    }
 }

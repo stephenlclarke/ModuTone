@@ -5,7 +5,8 @@
 use tauri::{AppHandle, State};
 
 use crate::contracts::commands::{
-    CancelGenerationRequest, StartGenerationResponse, StartInitialRequest, StartRefinementRequest,
+    ensure_contract_version, CancelGenerationRequest, StartGenerationResponse, StartInitialRequest,
+    StartRefinementRequest,
 };
 use crate::contracts::errors::IpcError;
 use crate::contracts::shared::RequestKind;
@@ -92,6 +93,7 @@ pub async fn generation_start_initial(
     metadata_store: State<'_, MetadataStore>,
     app: AppHandle,
 ) -> Result<StartGenerationResponse, IpcError> {
+    ensure_contract_version(request.contract_version, "inference")?;
     if request.source_text.is_empty() {
         return Err(IpcError {
             code: "EMPTY_INPUT".to_string(),
@@ -148,6 +150,7 @@ pub async fn generation_start_refinement(
     metadata_store: State<'_, MetadataStore>,
     app: AppHandle,
 ) -> Result<StartGenerationResponse, IpcError> {
+    ensure_contract_version(request.contract_version, "inference")?;
     if request.refinement_instruction.is_empty() {
         return Err(IpcError {
             code: "EMPTY_INSTRUCTION".to_string(),
@@ -205,6 +208,7 @@ pub async fn generation_cancel(
     coordinator: State<'_, JobCoordinator>,
     app: AppHandle,
 ) -> Result<(), IpcError> {
+    ensure_contract_version(request.contract_version, "inference")?;
     coordinator
         .cancel_job(&supervisor, &app, &request.job_id)
         .await

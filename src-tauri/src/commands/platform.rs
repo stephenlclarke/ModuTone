@@ -2,7 +2,9 @@
 
 use tauri::{AppHandle, Manager, State};
 
-use crate::contracts::commands::{PlatformFeatureResponse, SetBooleanRequest};
+use crate::contracts::commands::{
+    ensure_contract_version, PlatformFeatureResponse, SetBooleanRequest,
+};
 use crate::contracts::errors::IpcError;
 use crate::services::platform::window_privacy::PlatformCapabilities;
 
@@ -10,7 +12,7 @@ use crate::services::platform::window_privacy::PlatformCapabilities;
 pub async fn app_set_launch_at_login(
     request: SetBooleanRequest,
 ) -> Result<PlatformFeatureResponse, IpcError> {
-    let _ = request;
+    ensure_contract_version(request.contract_version, "platform")?;
     Ok(PlatformFeatureResponse {
         applied: false,
         supported: false,
@@ -21,7 +23,7 @@ pub async fn app_set_launch_at_login(
 pub async fn app_set_tray_enabled(
     request: SetBooleanRequest,
 ) -> Result<PlatformFeatureResponse, IpcError> {
-    let _ = request;
+    ensure_contract_version(request.contract_version, "platform")?;
     Ok(PlatformFeatureResponse {
         applied: false,
         supported: false,
@@ -34,6 +36,7 @@ pub async fn app_set_privacy_blackout(
     app: AppHandle,
     capabilities: State<'_, PlatformCapabilities>,
 ) -> Result<PlatformFeatureResponse, IpcError> {
+    ensure_contract_version(request.contract_version, "platform")?;
     if !capabilities.privacy_blackout_supported {
         return Ok(PlatformFeatureResponse {
             applied: false,
