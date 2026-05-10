@@ -76,7 +76,7 @@ See [docs/BUILD_FROM_SOURCE.md](docs/BUILD_FROM_SOURCE.md) for complete build in
 npm run test
 
 # Rust unit + integration tests (166 tests)
-cargo test --workspace
+npm run test:rust
 
 # E2E tests (Playwright)
 npm run test:e2e

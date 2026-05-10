@@ -80,7 +80,9 @@ GitHub Actions runs on every push and PR to `main`:
 1. **Lint and test** (Ubuntu):
    - TypeScript typecheck, ESLint, Prettier check
    - Vitest (all frontend tests)
-   - Cargo fmt check, Clippy, Cargo test
+   - Cargo fmt check
+   - Worker sidecar preparation for Tauri `externalBin`
+   - Clippy and Cargo test
 
 2. **Build matrix** (Ubuntu, Windows, macOS):
    - Full `npm run build` on all three platforms

@@ -105,13 +105,13 @@ npm run dev
 npm run test
 
 # Run Rust tests
-cargo test --workspace
+npm run test:rust
 
 # Lint and format
 npm run lint
 npm run format:check
 cargo fmt --check --all
-cargo clippy --workspace -- -D warnings
+npm run lint:rust
 
 # Type check
 npm run typecheck
