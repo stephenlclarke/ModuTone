@@ -52,6 +52,31 @@ if (!existsSync(installerPath)) {
 // Read catalog for model validation
 const catalog = JSON.parse(readFileSync(catalogPath, "utf-8"));
 
+function entryStoragePaths(entry) {
+  if (Array.isArray(entry.files) && entry.files.length > 0) {
+    return entry.files;
+  }
+  const storagePath = entry.filename ?? entry.path;
+  return storagePath ? [storagePath] : [];
+}
+
+function catalogEntryForFile(filename) {
+  return catalog.find((entry) => entryStoragePaths(entry).includes(filename));
+}
+
+function catalogEntryComplete(entry) {
+  const files = entryStoragePaths(entry);
+  const actualSize = files.reduce((total, filename) => {
+    const path = join(modelsDir, filename);
+    return existsSync(path) ? total + statSync(path).size : total;
+  }, 0);
+  return (
+    files.length > 0 &&
+    files.every((filename) => existsSync(join(modelsDir, filename))) &&
+    actualSize >= Math.floor(entry.sizeBytes * INSTALLED_SIZE_THRESHOLD)
+  );
+}
+
 // Find valid GGUF files
 const ggufFiles = readdirSync(modelsDir)
   .filter((f) => f.toLowerCase().endsWith(".gguf"))
@@ -61,9 +86,9 @@ const ggufFiles = readdirSync(modelsDir)
     size: statSync(join(modelsDir, f)).size,
   }))
   .filter((file) => {
-    const entry = catalog.find((e) => e.filename === file.filename);
+    const entry = catalogEntryForFile(file.filename);
     if (!entry) return file.size > 0; // uncataloged: include if non-empty
-    return file.size >= Math.floor(entry.sizeBytes * INSTALLED_SIZE_THRESHOLD);
+    return catalogEntryComplete(entry);
   });
 
 if (ggufFiles.length === 0) {

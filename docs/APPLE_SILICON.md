@@ -141,6 +141,10 @@ export MODUTONE_MLX_PYTHON="$PWD/.venv-mlx/bin/python"
 
 ## Download GPT-OSS 20B TQ3
 
+The installed app can download `GPT-OSS 20B TurboQuant 3-bit` from Settings
+into the app data models directory. The command-line flow below is still useful
+for source-tree packaging or repeatable local setup.
+
 The model is about 10 GB on disk and is intentionally ignored by git.
 
 From the repository root:
@@ -187,9 +191,10 @@ npm run dev
 In the app:
 
 1. Open Settings.
-2. Select `GPT-OSS 20B TurboQuant 3-bit`.
-3. Wait for the model to warm.
-4. Generate or refine text.
+2. Download `GPT-OSS 20B TurboQuant 3-bit` if it is not already installed.
+3. Select `GPT-OSS 20B TurboQuant 3-bit`.
+4. Wait for the model to warm.
+5. Generate or refine text.
 
 ## Build and Install the App
 
@@ -222,8 +227,8 @@ hdiutil detach /tmp/modutone-dmg
 
 ## Use with an Installed macOS App
 
-For a local app installed in `/Applications`, put the model directory under the
-app data models directory:
+For a local app installed in `/Applications`, use Settings to download the
+model or put the model directory under the app data models directory:
 
 ```bash
 mkdir -p "$HOME/Library/Application Support/com.modutone.desktop/models"

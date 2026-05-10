@@ -11,6 +11,7 @@ import type {
   GenerationCompletedEvent,
   GenerationFailedEvent,
   GenerationCanceledEvent,
+  ModelDownloadProgressEvent,
 } from "./types";
 
 /**
@@ -78,6 +79,16 @@ export async function subscribeToBackendEvents(): Promise<UnlistenFn> {
     await listen<GenerationCanceledEvent>("generation:canceled", (event) => {
       useAppStore.getState().handleGenerationCanceled(event.payload);
     }),
+  );
+
+  // model:download-progress — explicit model download lifecycle updates
+  unlisteners.push(
+    await listen<ModelDownloadProgressEvent>(
+      "model:download-progress",
+      (event) => {
+        useAppStore.getState().handleModelDownloadProgress(event.payload);
+      },
+    ),
   );
 
   // Return a combined unlisten function

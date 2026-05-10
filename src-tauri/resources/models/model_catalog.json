@@ -10,8 +10,13 @@
   {
     "modelId": "qwen2.5-14b-instruct",
     "displayName": "Qwen 2.5 14B Instruct",
-    "filename": "qwen2.5-14b-instruct-q5_k_m.gguf",
-    "sizeBytes": 2742898688,
+    "filename": "qwen2.5-14b-instruct-q5_k_m-00001-of-00003.gguf",
+    "files": [
+      "qwen2.5-14b-instruct-q5_k_m-00001-of-00003.gguf",
+      "qwen2.5-14b-instruct-q5_k_m-00002-of-00003.gguf",
+      "qwen2.5-14b-instruct-q5_k_m-00003-of-00003.gguf"
+    ],
+    "sizeBytes": 10508873376,
     "minRamBytes": 24000000000,
     "ramClassLabel": "~24 GB"
   },
@@ -20,7 +25,7 @@
     "displayName": "GPT-OSS 20B TurboQuant 3-bit",
     "backend": "mlx",
     "path": "gpt-oss-20b-tq3",
-    "sizeBytes": 9970000000,
+    "sizeBytes": 9971645899,
     "minRamBytes": 16000000000,
     "ramClassLabel": "~16 GB"
   }

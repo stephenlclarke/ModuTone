@@ -24,35 +24,41 @@ pub enum ModelBackend {
 }
 
 /// A single entry in model_catalog.json.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CatalogEntry {
     pub model_id: String,
     pub display_name: String,
     #[serde(default)]
     pub backend: ModelBackend,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub filename: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub files: Vec<String>,
     pub size_bytes: u64,
     pub min_ram_bytes: u64,
     pub ram_class_label: String,
 }
 
 impl CatalogEntry {
-    fn storage_path(&self) -> Result<&str, String> {
+    fn storage_paths(&self) -> Result<Vec<&str>, String> {
+        if !self.files.is_empty() {
+            return Ok(self.files.iter().map(String::as_str).collect());
+        }
+
         match self.backend {
-            ModelBackend::Gguf => self
+            ModelBackend::Gguf => Ok(vec![self
                 .filename
                 .as_deref()
                 .or(self.path.as_deref())
-                .ok_or_else(|| "GGUF catalog entries require filename".to_string()),
-            ModelBackend::Mlx => self
+                .ok_or_else(|| "GGUF catalog entries require filename".to_string())?]),
+            ModelBackend::Mlx => Ok(vec![self
                 .path
                 .as_deref()
                 .or(self.filename.as_deref())
-                .ok_or_else(|| "MLX catalog entries require path".to_string()),
+                .ok_or_else(|| "MLX catalog entries require path".to_string())?]),
         }
     }
 }
@@ -76,6 +82,8 @@ pub struct DiscoveredModel {
 /// Registry of discovered models. Created during app setup, managed as Tauri state.
 pub struct ModelRegistry {
     models: Vec<DiscoveredModel>,
+    app_data_dir: PathBuf,
+    resource_dir: Option<PathBuf>,
 }
 
 impl ModelRegistry {
@@ -83,37 +91,7 @@ impl ModelRegistry {
     ///
     /// - `app_data_dir`: The app's data directory (for user models)
     pub fn init(app_data_dir: &Path, resource_dir: Option<&Path>) -> Self {
-        let mut models = Vec::new();
-
-        // 1. Bundled models directory
-        let bundled_dir = resolve_bundled_models_dir(resource_dir);
-        if let Some(dir) = &bundled_dir {
-            log::info!("Scanning bundled models dir: {}", dir.display());
-            if let Ok(entries) = discover_from_directory(dir) {
-                models.extend(entries);
-            }
-        }
-
-        // 2. User models directory (auto-create if missing)
-        let user_dir = resolve_user_models_dir(app_data_dir);
-        if let Err(e) = std::fs::create_dir_all(&user_dir) {
-            log::warn!(
-                "Failed to create user models directory {}: {}",
-                user_dir.display(),
-                e
-            );
-        }
-        log::info!("Scanning user models dir: {}", user_dir.display());
-        if let Ok(entries) = discover_from_directory(&user_dir) {
-            // User entries override bundled entries with the same modelId
-            for entry in entries {
-                if let Some(existing) = models.iter_mut().find(|m| m.id == entry.id) {
-                    *existing = entry;
-                } else {
-                    models.push(entry);
-                }
-            }
-        }
+        let models = discover_known_model_dirs(app_data_dir, resource_dir);
 
         log::info!(
             "Model registry initialized: {} model(s), {} installed",
@@ -121,7 +99,25 @@ impl ModelRegistry {
             models.iter().filter(|m| m.is_installed).count()
         );
 
-        Self { models }
+        Self {
+            models,
+            app_data_dir: app_data_dir.to_path_buf(),
+            resource_dir: resource_dir.map(Path::to_path_buf),
+        }
+    }
+
+    pub fn refresh(&mut self) {
+        self.models = discover_known_model_dirs(&self.app_data_dir, self.resource_dir.as_deref());
+
+        log::info!(
+            "Model registry refreshed: {} model(s), {} installed",
+            self.models.len(),
+            self.models.iter().filter(|m| m.is_installed).count()
+        );
+    }
+
+    pub fn user_models_dir(&self) -> PathBuf {
+        resolve_user_models_dir(&self.app_data_dir)
     }
 
     /// Get all discovered models.
@@ -133,6 +129,45 @@ impl ModelRegistry {
     pub fn find_by_id(&self, model_id: &str) -> Option<&DiscoveredModel> {
         self.models.iter().find(|m| m.id == model_id)
     }
+}
+
+fn discover_known_model_dirs(
+    app_data_dir: &Path,
+    resource_dir: Option<&Path>,
+) -> Vec<DiscoveredModel> {
+    let mut models = Vec::new();
+
+    // 1. Bundled models directory
+    let bundled_dir = resolve_bundled_models_dir(resource_dir);
+    if let Some(dir) = &bundled_dir {
+        log::info!("Scanning bundled models dir: {}", dir.display());
+        if let Ok(entries) = discover_from_directory(dir) {
+            models.extend(entries);
+        }
+    }
+
+    // 2. User models directory (auto-create if missing)
+    let user_dir = resolve_user_models_dir(app_data_dir);
+    if let Err(e) = std::fs::create_dir_all(&user_dir) {
+        log::warn!(
+            "Failed to create user models directory {}: {}",
+            user_dir.display(),
+            e
+        );
+    }
+    log::info!("Scanning user models dir: {}", user_dir.display());
+    if let Ok(entries) = discover_from_directory(&user_dir) {
+        // User entries override bundled entries with the same modelId
+        for entry in entries {
+            if let Some(existing) = models.iter_mut().find(|m| m.id == entry.id) {
+                *existing = entry;
+            } else {
+                models.push(entry);
+            }
+        }
+    }
+
+    models
 }
 
 /// Resolve bundled models directory.
@@ -306,6 +341,40 @@ fn validate_file_installed(path: &Path, expected_size: u64) -> bool {
         );
         return false;
     }
+    true
+}
+
+fn validate_files_installed(dir: &Path, files: &[&str], expected_size: u64) -> bool {
+    if files.is_empty() {
+        return false;
+    }
+
+    let mut total_size = 0;
+    for file in files {
+        let path = dir.join(file);
+        let metadata = match std::fs::metadata(&path) {
+            Ok(metadata) if metadata.is_file() => metadata,
+            _ => return false,
+        };
+        total_size += metadata.len();
+    }
+
+    if expected_size == 0 {
+        return true;
+    }
+
+    let min_acceptable = (expected_size as f64 * INSTALLED_SIZE_THRESHOLD) as u64;
+    if total_size < min_acceptable {
+        log::warn!(
+            "Model file set size mismatch: expected {} bytes, actual {} bytes (threshold {}). \
+             Files may be incomplete.",
+            expected_size,
+            total_size,
+            min_acceptable
+        );
+        return false;
+    }
+
     true
 }
 
@@ -509,36 +578,65 @@ fn discover_from_directory(dir: &Path) -> Result<Vec<DiscoveredModel>, String> {
         let entries = parse_catalog(&json)?;
 
         for entry in entries {
-            let storage_path = entry
-                .storage_path()
+            let storage_paths = entry
+                .storage_paths()
                 .map_err(|e| format!("Invalid catalog entry '{}': {}", entry.model_id, e))?
+                .into_iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>();
+            let storage_path = storage_paths
+                .first()
+                .ok_or_else(|| format!("Invalid catalog entry '{}': no files", entry.model_id))?
                 .to_string();
             let model_path = dir.join(&storage_path);
 
             let is_installed = match entry.backend {
                 ModelBackend::Gguf => {
-                    // Track both the full filename and the stem (without .gguf).
-                    // The stem is used to deduplicate shard groups whose base_name
-                    // matches a cataloged merged file.
-                    if let Some(stem) = storage_path
-                        .strip_suffix(".gguf")
-                        .or_else(|| storage_path.strip_suffix(".GGUF"))
-                    {
-                        cataloged_stems.insert(stem.to_string());
+                    for path in &storage_paths {
+                        cataloged_filenames.insert(path.clone());
+
+                        if let Some(shard) = parse_shard_filename(path) {
+                            cataloged_stems.insert(shard.base_name);
+                            continue;
+                        }
+
+                        // Track both the full filename and the stem (without .gguf).
+                        // The stem is used to deduplicate shard groups whose base_name
+                        // matches a cataloged merged file.
+                        if let Some(stem) = path
+                            .strip_suffix(".gguf")
+                            .or_else(|| path.strip_suffix(".GGUF"))
+                        {
+                            cataloged_stems.insert(stem.to_string());
+                        }
                     }
-                    cataloged_filenames.insert(storage_path.clone());
 
                     // Validate both existence and file size. A file that exists
                     // but is significantly smaller than expected is not installed.
-                    let installed = validate_file_installed(&model_path, entry.size_bytes);
+                    let installed = if storage_paths.len() == 1 {
+                        validate_file_installed(&model_path, entry.size_bytes)
+                    } else {
+                        validate_files_installed(
+                            dir,
+                            &storage_paths.iter().map(String::as_str).collect::<Vec<_>>(),
+                            entry.size_bytes,
+                        )
+                    };
 
                     // Only suppress shard groups if the merged file is valid.
                     if !installed {
-                        if let Some(stem) = storage_path
-                            .strip_suffix(".gguf")
-                            .or_else(|| storage_path.strip_suffix(".GGUF"))
-                        {
-                            cataloged_stems.remove(stem);
+                        for path in &storage_paths {
+                            if let Some(shard) = parse_shard_filename(path) {
+                                cataloged_stems.remove(&shard.base_name);
+                                continue;
+                            }
+
+                            if let Some(stem) = path
+                                .strip_suffix(".gguf")
+                                .or_else(|| path.strip_suffix(".GGUF"))
+                            {
+                                cataloged_stems.remove(stem);
+                            }
                         }
                     }
 
@@ -809,7 +907,31 @@ mod tests {
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].backend, ModelBackend::Mlx);
         assert_eq!(entries[0].path.as_deref(), Some("gpt-oss-20b-tq3"));
-        assert_eq!(entries[0].storage_path().unwrap(), "gpt-oss-20b-tq3");
+        assert_eq!(entries[0].storage_paths().unwrap(), vec!["gpt-oss-20b-tq3"]);
+    }
+
+    #[test]
+    fn parse_catalog_supports_sharded_gguf_entry() {
+        let json = r#"[
+            {
+                "modelId": "qwen2.5-14b-instruct",
+                "displayName": "Qwen 2.5 14B Instruct",
+                "filename": "qwen2.5-14b-instruct-q5_k_m-00001-of-00003.gguf",
+                "files": [
+                    "qwen2.5-14b-instruct-q5_k_m-00001-of-00003.gguf",
+                    "qwen2.5-14b-instruct-q5_k_m-00002-of-00003.gguf",
+                    "qwen2.5-14b-instruct-q5_k_m-00003-of-00003.gguf"
+                ],
+                "sizeBytes": 9,
+                "minRamBytes": 24000000000,
+                "ramClassLabel": "~24 GB"
+            }
+        ]"#;
+
+        let entries = parse_catalog(json).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].backend, ModelBackend::Gguf);
+        assert_eq!(entries[0].storage_paths().unwrap().len(), 3);
     }
 
     #[test]
@@ -913,6 +1035,54 @@ mod tests {
         assert_eq!(models[0].backend, ModelBackend::Mlx);
         assert_eq!(models[0].filename, "gpt-oss-20b-tq3");
         assert_eq!(models[0].is_installed, backend_supported(ModelBackend::Mlx));
+    }
+
+    #[test]
+    fn discovery_catalog_with_sharded_gguf_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        let catalog = r#"[
+            {
+                "modelId": "qwen2.5-14b-instruct",
+                "displayName": "Qwen 2.5 14B Instruct",
+                "filename": "qwen2.5-14b-instruct-q5_k_m-00001-of-00003.gguf",
+                "files": [
+                    "qwen2.5-14b-instruct-q5_k_m-00001-of-00003.gguf",
+                    "qwen2.5-14b-instruct-q5_k_m-00002-of-00003.gguf",
+                    "qwen2.5-14b-instruct-q5_k_m-00003-of-00003.gguf"
+                ],
+                "sizeBytes": 9,
+                "minRamBytes": 24000000000,
+                "ramClassLabel": "~24 GB"
+            }
+        ]"#;
+        fs::write(tmp.path().join("model_catalog.json"), catalog).unwrap();
+        fs::write(
+            tmp.path()
+                .join("qwen2.5-14b-instruct-q5_k_m-00001-of-00003.gguf"),
+            "aaa",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path()
+                .join("qwen2.5-14b-instruct-q5_k_m-00002-of-00003.gguf"),
+            "bbb",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path()
+                .join("qwen2.5-14b-instruct-q5_k_m-00003-of-00003.gguf"),
+            "ccc",
+        )
+        .unwrap();
+
+        let models = discover_from_directory(tmp.path()).unwrap();
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].id, "qwen2.5-14b-instruct");
+        assert!(models[0].is_installed);
+        assert_eq!(
+            models[0].filename,
+            "qwen2.5-14b-instruct-q5_k_m-00001-of-00003.gguf"
+        );
     }
 
     #[test]

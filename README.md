@@ -27,6 +27,8 @@ it.
   transmitted.
 - **Local inference:** Generation runs on-device with local GGUF files or an
   Apple Silicon MLX model directory.
+- **Explicit model downloads:** Settings can download cataloged model files
+  without sending writing content off-device.
 - **Non-destructive editing:** Proposed output stays separate until accepted.
 - **Composable style controls:** Tags and profiles express writing intent.
 
@@ -90,6 +92,8 @@ Windows release packages use a two-file installer payload:
 The launcher extracts the payload, runs the NSIS installer, and copies bundled
 models into the application install directory.
 
+Models can also be downloaded from Settings after installation.
+
 macOS and Linux packages can be built from source. See
 [Installation](docs/INSTALLATION.md) for platform details.
 
@@ -99,7 +103,7 @@ macOS and Linux packages can be built from source. See
 | --- | --- |
 | OS | Windows 11 x64, macOS, or Linux |
 | RAM | 8 GB for 3B model, 16 GB for MLX TQ3, 24 GB for 14B model |
-| Disk | About 6 GB for app plus bundled models |
+| Disk | Varies by downloaded model, from about 2.5 GB to 10.5 GB |
 
 ModuTone detects available RAM and labels models as recommended, caution, or
 unsupported for the current system.
@@ -126,13 +130,13 @@ commands. On Apple Silicon, see
 
 ## Testing
 
-Current local validation covers 416 test cases:
+Current local validation covers 424 test cases:
 
 ```bash
-# Frontend, contract, and TypeScript tests: 239 tests
+# Frontend, contract, and TypeScript tests: 242 tests
 npm run test
 
-# Rust backend and worker tests: 176 tests
+# Rust backend and worker tests: 181 tests
 npm run test:rust
 
 # Playwright smoke test: 1 test

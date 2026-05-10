@@ -5,11 +5,20 @@ import type {
   BuiltInTagEntry,
   CustomTagEntry,
   ModelEntry,
+  ModelDownloadProgressEvent,
   MotionPreference,
   ProfileEntry,
   ThemePreference,
   VisualStyle,
 } from "../../ipc/types";
+
+export interface ModelDownloadState {
+  status: ModelDownloadProgressEvent["status"] | "idle";
+  bytesDownloaded: number;
+  totalBytes: number;
+  fileName: string | null;
+  error: string | null;
+}
 
 export interface MetadataState {
   settings: {
@@ -29,6 +38,7 @@ export interface MetadataState {
   builtInTags: BuiltInTagEntry[];
   customTags: CustomTagEntry[];
   models: ModelEntry[];
+  modelDownloads: Record<string, ModelDownloadState>;
   systemRamBytes: number | null;
   loadStatus: "idle" | "loading" | "loaded" | "error";
 }

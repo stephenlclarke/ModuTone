@@ -88,3 +88,27 @@ pub struct PrivacySupportStatusChangedEvent {
     pub privacy_blackout_supported: bool,
     pub platform: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelDownloadStatus {
+    Queued,
+    Downloading,
+    Completed,
+    Failed,
+    Canceled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelDownloadProgressEvent {
+    pub contract_version: u32,
+    pub model_id: String,
+    pub status: ModelDownloadStatus,
+    pub bytes_downloaded: u64,
+    pub total_bytes: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}

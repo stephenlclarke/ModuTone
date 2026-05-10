@@ -37,6 +37,14 @@ function entryStoragePath(entry) {
   return entry.filename ?? entry.path;
 }
 
+function entryStoragePaths(entry) {
+  if (Array.isArray(entry.files) && entry.files.length > 0) {
+    return entry.files;
+  }
+  const storagePath = entryStoragePath(entry);
+  return storagePath ? [storagePath] : [];
+}
+
 function hasFileWithExtension(directory, extension) {
   return readdirSync(directory).some((file) =>
     file.toLowerCase().endsWith(extension),
@@ -69,33 +77,56 @@ console.log();
 let validGgufCount = 0;
 let validMlxCount = 0;
 let skippedCount = 0;
+const catalogedGgufFiles = new Set();
 
-for (const file of ggufFiles) {
-  const entry = catalog.find(
-    (e) => entryBackend(e) === "gguf" && entryStoragePath(e) === file.filename,
-  );
-  if (!entry) {
-    console.log(
-      `  [UNCATALOGED] ${file.filename} (${(file.size / 1e9).toFixed(2)} GB)`,
-    );
-    validGgufCount++;
-    continue;
+for (const entry of catalog.filter((e) => entryBackend(e) === "gguf")) {
+  const files = entryStoragePaths(entry);
+  for (const filename of files) {
+    catalogedGgufFiles.add(filename);
   }
+
+  const installedFiles = files
+    .map((filename) => ({
+      filename,
+      path: join(modelsDir, filename),
+    }))
+    .filter((file) => existsSync(file.path) && statSync(file.path).isFile());
+
+  const actualSize = installedFiles.reduce(
+    (total, file) => total + statSync(file.path).size,
+    0,
+  );
 
   const minSize = Math.floor(entry.sizeBytes * INSTALLED_SIZE_THRESHOLD);
-  if (file.size < minSize) {
+  if (installedFiles.length !== files.length) {
+    if (installedFiles.length > 0) {
+      console.warn(
+        `  [INCOMPLETE]  ${entry.displayName} - ${installedFiles.length}/${files.length} file(s) present`,
+      );
+      skippedCount++;
+    }
+  } else if (actualSize < minSize) {
     console.warn(
-      `  [TRUNCATED]   ${file.filename} - ` +
-        `${(file.size / 1e9).toFixed(2)} GB of expected ${(entry.sizeBytes / 1e9).toFixed(2)} GB ` +
-        `(${((file.size / entry.sizeBytes) * 100).toFixed(1)}%)`,
+      `  [TRUNCATED]   ${entry.displayName} - ` +
+        `${(actualSize / 1e9).toFixed(2)} GB of expected ${(entry.sizeBytes / 1e9).toFixed(2)} GB ` +
+        `(${((actualSize / entry.sizeBytes) * 100).toFixed(1)}%)`,
     );
     skippedCount++;
-  } else {
+  } else if (files.length > 0) {
     console.log(
-      `  [OK]          ${file.filename} (${(file.size / 1e9).toFixed(2)} GB)`,
+      `  [OK]          ${entry.displayName} (${(actualSize / 1e9).toFixed(2)} GB, ${files.length} file(s))`,
     );
     validGgufCount++;
   }
+}
+
+for (const file of ggufFiles.filter(
+  (file) => !catalogedGgufFiles.has(file.filename),
+)) {
+  console.log(
+    `  [UNCATALOGED] ${file.filename} (${(file.size / 1e9).toFixed(2)} GB)`,
+  );
+  validGgufCount++;
 }
 
 const mlxEntries = catalog.filter((entry) => entryBackend(entry) === "mlx");

@@ -8,14 +8,14 @@ Last local validation: 2026-05-10.
 
 | Category | Framework | Count | Status |
 | --- | --- | --- | --- |
-| TypeScript, frontend, and contract | Vitest | 239 | Pass |
-| Rust backend and worker | Cargo test | 176 | Pass |
+| TypeScript, frontend, and contract | Vitest | 242 | Pass |
+| Rust backend and worker | Cargo test | 181 | Pass |
 | E2E smoke | Playwright | 1 | Pass |
-| Total | Mixed | 416 | Pass |
+| Total | Mixed | 424 | Pass |
 
 ## TypeScript Tests
 
-`npm run test` runs 239 Vitest tests across:
+`npm run test` runs 242 Vitest tests across:
 
 - Frontend component behavior.
 - Zustand state slices.
@@ -43,7 +43,7 @@ Test files:
 
 ## Rust Tests
 
-`npm run test:rust` builds the worker sidecar and runs 176 Rust tests across:
+`npm run test:rust` builds the worker sidecar and runs 181 Rust tests across:
 
 - Command validation.
 - Model catalog discovery.

@@ -232,6 +232,9 @@ pub struct ModelEntry {
     pub is_cataloged: bool,
     pub suitability: ModelSuitability,
     pub quant_label: Option<String>,
+    pub can_download: bool,
+    pub download_size_bytes: Option<u64>,
+    pub download_unavailable_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -240,6 +243,34 @@ pub struct ModelsListResponse {
     pub models: Vec<ModelEntry>,
     pub system_ram_bytes: u64,
     pub system_vram_bytes: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelDownloadStartRequest {
+    pub contract_version: u32,
+    pub model_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelDownloadStartResponse {
+    pub started: bool,
+    pub already_installed: bool,
+    pub total_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelDownloadCancelRequest {
+    pub contract_version: u32,
+    pub model_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelDownloadCancelResponse {
+    pub canceled: bool,
 }
 
 // --- Runtime ---

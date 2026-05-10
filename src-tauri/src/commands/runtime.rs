@@ -1,5 +1,7 @@
 // Phase: 9
 
+use std::sync::{Arc, Mutex};
+
 use tauri::{AppHandle, State};
 
 use crate::contracts::commands::{RuntimeStatusResponse, WarmModelRequest};
@@ -48,7 +50,7 @@ pub async fn runtime_get_status(
 pub async fn runtime_warm_model(
     request: WarmModelRequest,
     supervisor: State<'_, WorkerSupervisor>,
-    registry: State<'_, ModelRegistry>,
+    registry: State<'_, Arc<Mutex<ModelRegistry>>>,
     app: AppHandle,
 ) -> Result<(), IpcError> {
     // Check if model is already loaded
@@ -64,14 +66,23 @@ pub async fn runtime_warm_model(
     }
 
     // Look up model in registry and verify it's installed
-    let model = registry
-        .find_by_id(&request.model_id)
-        .ok_or_else(|| IpcError {
-            code: "MODEL_NOT_FOUND".to_string(),
-            message: format!("Model '{}' not found in catalog", request.model_id),
-            detail: None,
+    let model = {
+        let registry = registry.lock().map_err(|e| IpcError {
+            code: "MODEL_REGISTRY_LOCK_FAILED".to_string(),
+            message: "Failed to access model registry".to_string(),
+            detail: Some(e.to_string()),
             subsystem: "inference".to_string(),
         })?;
+        registry
+            .find_by_id(&request.model_id)
+            .cloned()
+            .ok_or_else(|| IpcError {
+                code: "MODEL_NOT_FOUND".to_string(),
+                message: format!("Model '{}' not found in catalog", request.model_id),
+                detail: None,
+                subsystem: "inference".to_string(),
+            })?
+    };
 
     if !model.is_installed {
         return Err(IpcError {

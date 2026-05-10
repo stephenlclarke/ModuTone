@@ -15,8 +15,7 @@ The items below are possible future work, not commitments.
 
 - Evaluate additional open-weight model families for writing refinement.
 - Add an opt-in local model import flow.
-- Consider in-app model download only if the privacy and consent model is
-  explicit.
+- Add checksum verification for in-app model downloads.
 
 ## Writing Features
 

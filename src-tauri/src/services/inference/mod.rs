@@ -3,6 +3,7 @@
 
 pub mod job_coordinator;
 pub mod model_catalog;
+pub mod model_downloader;
 pub mod prompt_composer;
 pub mod worker_protocol;
 pub mod worker_supervisor;

@@ -25,6 +25,10 @@ import type {
   ProfileResetRequest,
   ProfileResetResponse,
   ModelsListResponse,
+  ModelDownloadStartRequest,
+  ModelDownloadStartResponse,
+  ModelDownloadCancelRequest,
+  ModelDownloadCancelResponse,
   RuntimeStatusResponse,
   WarmModelRequest,
   SetBooleanRequest,
@@ -123,6 +127,22 @@ export async function profilesResetToDefault(
 
 export async function modelsList(): Promise<ModelsListResponse> {
   return invokeCommand<ModelsListResponse>("models_list");
+}
+
+export async function modelDownloadStart(
+  request: ModelDownloadStartRequest,
+): Promise<ModelDownloadStartResponse> {
+  return invokeCommand<ModelDownloadStartResponse>("model_download_start", {
+    request,
+  });
+}
+
+export async function modelDownloadCancel(
+  request: ModelDownloadCancelRequest,
+): Promise<ModelDownloadCancelResponse> {
+  return invokeCommand<ModelDownloadCancelResponse>("model_download_cancel", {
+    request,
+  });
 }
 
 // --- Runtime ---

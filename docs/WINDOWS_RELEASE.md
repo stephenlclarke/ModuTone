@@ -66,7 +66,7 @@ does not contain writing content or generated output.
 | Model | Quantization | Catalog size |
 | --- | --- | --- |
 | Qwen 2.5 3B Instruct | Q5_K_M | 2.44 GB |
-| Qwen 2.5 14B Instruct | Q5_K_M | 2.74 GB |
+| Qwen 2.5 14B Instruct | Q5_K_M sharded GGUF | 10.51 GB |
 
 ModuTone detects system RAM and labels each model as recommended, caution, or
 unsupported.

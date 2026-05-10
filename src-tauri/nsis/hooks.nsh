@@ -10,7 +10,9 @@
 ;
 ; Expected layout next to setup.exe (in SFX temp dir):
 ;   models/qwen2.5-3b-instruct-q5_k_m.gguf
-;   models/qwen2.5-14b-instruct-q5_k_m.gguf
+;   models/qwen2.5-14b-instruct-q5_k_m-00001-of-00003.gguf
+;   models/qwen2.5-14b-instruct-q5_k_m-00002-of-00003.gguf
+;   models/qwen2.5-14b-instruct-q5_k_m-00003-of-00003.gguf
 ;
 ; NSIS_HOOK_PREUNINSTALL: Ask user whether to remove application data.
 ; Default: No (preserves user data).

@@ -190,16 +190,21 @@ Expected filenames:
 | Model | Filename |
 | --- | --- |
 | Qwen 2.5 3B Instruct | `qwen2.5-3b-instruct-q5_k_m.gguf` |
-| Qwen 2.5 14B Instruct | `qwen2.5-14b-instruct-q5_k_m.gguf` |
+| Qwen 2.5 14B Instruct | `qwen2.5-14b-instruct-q5_k_m-00001-of-00003.gguf` |
+| Qwen 2.5 14B Instruct | `qwen2.5-14b-instruct-q5_k_m-00002-of-00003.gguf` |
+| Qwen 2.5 14B Instruct | `qwen2.5-14b-instruct-q5_k_m-00003-of-00003.gguf` |
 | GPT-OSS 20B TurboQuant 3-bit | `gpt-oss-20b-tq3/` |
 
-Download the matching Q5_K_M GGUF variants from the upstream Qwen model pages
-on Hugging Face. On Apple Silicon, download
+The app can download cataloged models from Settings into the user models
+directory. For source-tree packaging, download the matching Q5_K_M GGUF
+variants from the upstream Qwen model pages on Hugging Face. On Apple Silicon,
+download
 `manjunathshiva/gpt-oss-20b-tq3` as an MLX model directory by following
 [Apple Silicon MLX Setup](APPLE_SILICON.md).
 
-The catalog checks GGUF filenames and rejects truncated GGUF files that are
-below the install-size threshold. MLX model directories must contain
+The catalog checks GGUF filenames or shard sets and rejects truncated GGUF
+downloads that are below the install-size threshold. MLX model directories must
+contain
 `config.json`, `tokenizer.json`, and at least one `.safetensors` file.
 
 Validate local model files with:

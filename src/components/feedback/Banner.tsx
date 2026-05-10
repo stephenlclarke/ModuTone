@@ -47,7 +47,7 @@ export function Banner() {
     banners.push({
       key: "no-models",
       message:
-        "Place a GGUF model file or MLX model folder in the models folder, then restart to begin.",
+        "Download a model in Settings or place a local model in the models folder.",
       style: "info",
     });
   } else if (anyInstalled && !selectedModelId) {

@@ -23,9 +23,10 @@ copies bundled GGUF model files into the application install directory.
 Launch ModuTone from the Start Menu or desktop shortcut. On first launch:
 
 1. ModuTone detects available system RAM.
-2. The model selector shows model suitability.
-3. Select a model to warm it.
-4. Start writing.
+2. Settings can download cataloged models into the app data models directory.
+3. The model selector shows model suitability.
+4. Select a model to warm it.
+5. Start writing.
 
 ## System Requirements
 
@@ -33,8 +34,9 @@ Launch ModuTone from the Start Menu or desktop shortcut. On first launch:
 | --- | --- |
 | OS | Windows 11 x64 verified |
 | RAM for 3B model | 8 GB minimum |
+| RAM for GPT-OSS TQ3 MLX model | 16 GB minimum on Apple Silicon |
 | RAM for 14B model | 24 GB minimum |
-| Disk space | About 6 GB for app and bundled models |
+| Disk space | Varies by downloaded model, from about 2.5 GB to 10.5 GB |
 
 Windows 10 may work if WebView2 is available, but Windows 11 is the verified
 release target.

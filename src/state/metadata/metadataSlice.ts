@@ -22,10 +22,12 @@ import {
   profilesDelete,
   profilesResetToDefault,
   modelsList,
+  modelDownloadStart,
+  modelDownloadCancel,
   modelAliasSet,
   modelAliasClear,
 } from "../../ipc/commands";
-import type { ProfileEntry } from "../../ipc/types";
+import type { ModelDownloadProgressEvent, ProfileEntry } from "../../ipc/types";
 
 /** Resolve the factory default profile ID from the profiles list by its flag. */
 function getFactoryDefaultId(profiles: ProfileEntry[]): string {
@@ -67,6 +69,11 @@ export interface MetadataSlice {
   setModelAlias: (modelId: string, alias: string) => Promise<void>;
   clearModelAlias: (modelId: string) => Promise<void>;
 
+  // Model Downloads
+  startModelDownload: (modelId: string) => Promise<void>;
+  cancelModelDownload: (modelId: string) => Promise<void>;
+  handleModelDownloadProgress: (event: ModelDownloadProgressEvent) => void;
+
   // Tag CRUD
   createTag: (
     name: string,
@@ -87,6 +94,7 @@ export const createMetadataSlice: StateCreator<MetadataSlice> = (set, get) => ({
     builtInTags: [],
     customTags: [],
     models: [],
+    modelDownloads: {},
     systemRamBytes: null,
     loadStatus: "idle",
   },
@@ -110,6 +118,7 @@ export const createMetadataSlice: StateCreator<MetadataSlice> = (set, get) => ({
           customTags: tagsResponse.customTags,
           profiles: profilesResponse.profiles,
           models: modelsResponse.models,
+          modelDownloads: get().metadata.modelDownloads,
           systemRamBytes: modelsResponse.systemRamBytes,
           loadStatus: "loaded",
         },
@@ -230,6 +239,86 @@ export const createMetadataSlice: StateCreator<MetadataSlice> = (set, get) => ({
     set((state) => ({
       metadata: { ...state.metadata, settings },
     }));
+  },
+
+  // --- Model Downloads ---
+
+  startModelDownload: async (modelId) => {
+    set((state) => ({
+      metadata: {
+        ...state.metadata,
+        modelDownloads: {
+          ...state.metadata.modelDownloads,
+          [modelId]: {
+            status: "queued",
+            bytesDownloaded: 0,
+            totalBytes:
+              state.metadata.models.find((model) => model.id === modelId)
+                ?.downloadSizeBytes ?? 0,
+            fileName: null,
+            error: null,
+          },
+        },
+      },
+    }));
+
+    try {
+      const response = await modelDownloadStart({
+        contractVersion: 1,
+        modelId,
+      });
+      if (response.alreadyInstalled) {
+        await get().loadMetadata();
+      }
+    } catch (error) {
+      const detail =
+        error && typeof error === "object" && "message" in error
+          ? String((error as { message?: unknown }).message)
+          : "Failed to start model download";
+      set((state) => ({
+        metadata: {
+          ...state.metadata,
+          modelDownloads: {
+            ...state.metadata.modelDownloads,
+            [modelId]: {
+              status: "failed",
+              bytesDownloaded: 0,
+              totalBytes:
+                state.metadata.models.find((model) => model.id === modelId)
+                  ?.downloadSizeBytes ?? 0,
+              fileName: null,
+              error: detail,
+            },
+          },
+        },
+      }));
+    }
+  },
+
+  cancelModelDownload: async (modelId) => {
+    await modelDownloadCancel({ contractVersion: 1, modelId });
+  },
+
+  handleModelDownloadProgress: (event) => {
+    set((state) => ({
+      metadata: {
+        ...state.metadata,
+        modelDownloads: {
+          ...state.metadata.modelDownloads,
+          [event.modelId]: {
+            status: event.status,
+            bytesDownloaded: event.bytesDownloaded,
+            totalBytes: event.totalBytes,
+            fileName: event.fileName ?? null,
+            error: event.error ?? null,
+          },
+        },
+      },
+    }));
+
+    if (event.status === "completed") {
+      void get().loadMetadata();
+    }
   },
 
   // --- Tag CRUD ---

@@ -18,12 +18,19 @@ export function ModelSelector() {
   const initiateModelLoad = useAppStore((state) => state.initiateModelLoad);
   const setModelAlias = useAppStore((state) => state.setModelAlias);
   const clearModelAlias = useAppStore((state) => state.clearModelAlias);
+  const modelDownloads = useAppStore((state) => state.metadata.modelDownloads);
+  const startModelDownload = useAppStore((state) => state.startModelDownload);
+  const cancelModelDownload = useAppStore((state) => state.cancelModelDownload);
 
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
 
-  const anyInstalled = models.some((m) => m.isInstalled);
+  const installedModels = models.filter((m) => m.isInstalled);
+  const downloadableModels = models.filter(
+    (m) => m.isCataloged && !m.isInstalled,
+  );
+  const anyInstalled = installedModels.length > 0;
 
   const handleChange = useCallback(
     async (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -86,6 +93,88 @@ export function ModelSelector() {
     return `${name} (${backend}, ${model.ramClassLabel})`;
   }
 
+  function formatBytes(bytes: number | null): string {
+    if (!bytes || bytes <= 0) return "";
+    const gb = bytes / 1_000_000_000;
+    return `${gb.toFixed(gb >= 10 ? 1 : 2)} GB`;
+  }
+
+  function renderDownloads() {
+    if (downloadableModels.length === 0) return null;
+
+    return (
+      <div className="model-download-list">
+        {downloadableModels.map((model) => {
+          const download = modelDownloads[model.id];
+          const status = download?.status ?? "idle";
+          const isDownloading = status === "queued" || status === "downloading";
+          const progress =
+            download && download.totalBytes > 0
+              ? Math.min(
+                  100,
+                  Math.round(
+                    (download.bytesDownloaded / download.totalBytes) * 100,
+                  ),
+                )
+              : 0;
+          const sizeLabel = formatBytes(
+            model.downloadSizeBytes ?? model.sizeBytes,
+          );
+
+          return (
+            <div className="model-download-item" key={model.id}>
+              <div className="model-download-main">
+                <span className="model-download-name">
+                  {formatModelLabel(model)}
+                </span>
+                <span className="model-download-meta">
+                  {sizeLabel}
+                  {model.suitability === "unsupported"
+                    ? " - memory unsupported"
+                    : ""}
+                </span>
+                {isDownloading && (
+                  <div className="model-download-progress">
+                    <div
+                      className="model-download-progress-fill"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                )}
+                {download?.error && (
+                  <span className="model-download-error">{download.error}</span>
+                )}
+                {!model.canDownload && model.downloadUnavailableReason && (
+                  <span className="model-download-error">
+                    {model.downloadUnavailableReason}
+                  </span>
+                )}
+              </div>
+              {isDownloading ? (
+                <button
+                  className="model-download-btn model-download-btn-secondary"
+                  type="button"
+                  onClick={() => cancelModelDownload(model.id)}
+                >
+                  Cancel {progress}%
+                </button>
+              ) : (
+                <button
+                  className="model-download-btn"
+                  type="button"
+                  disabled={!model.canDownload}
+                  onClick={() => startModelDownload(model.id)}
+                >
+                  Download
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   if (models.length === 0) {
     return (
       <div className="model-selector" data-testid="model-selector">
@@ -94,6 +183,7 @@ export function ModelSelector() {
           Place a GGUF model file or MLX model folder in the models folder, then
           restart to begin.
         </p>
+        {renderDownloads()}
       </div>
     );
   }
@@ -108,6 +198,7 @@ export function ModelSelector() {
           Place a GGUF model file or MLX model folder in the models folder, then
           restart to begin.
         </p>
+        {renderDownloads()}
       </div>
     );
   }
@@ -124,13 +215,11 @@ export function ModelSelector() {
         onChange={handleChange}
       >
         <option value="">Select a model</option>
-        {models
-          .filter((m) => m.isInstalled)
-          .map((model) => (
-            <option key={model.id} value={model.id}>
-              {formatModelLabel(model)}
-            </option>
-          ))}
+        {installedModels.map((model) => (
+          <option key={model.id} value={model.id}>
+            {formatModelLabel(model)}
+          </option>
+        ))}
       </select>
       {selectedModelId && !renaming && (
         <button
@@ -161,6 +250,7 @@ export function ModelSelector() {
           />
         </div>
       )}
+      {renderDownloads()}
     </div>
   );
 }

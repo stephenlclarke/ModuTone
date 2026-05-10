@@ -198,6 +198,9 @@ export interface ModelEntry {
   isCataloged: boolean;
   suitability: ModelSuitability;
   quantLabel: string | null;
+  canDownload: boolean;
+  downloadSizeBytes: number | null;
+  downloadUnavailableReason: string | null;
 }
 
 // --- Model Aliases ---
@@ -217,6 +220,26 @@ export interface ModelsListResponse {
   models: ModelEntry[];
   systemRamBytes: number;
   systemVramBytes: number | null;
+}
+
+export interface ModelDownloadStartRequest {
+  contractVersion: ContractVersion;
+  modelId: string;
+}
+
+export interface ModelDownloadStartResponse {
+  started: boolean;
+  alreadyInstalled: boolean;
+  totalBytes: number;
+}
+
+export interface ModelDownloadCancelRequest {
+  contractVersion: ContractVersion;
+  modelId: string;
+}
+
+export interface ModelDownloadCancelResponse {
+  canceled: boolean;
 }
 
 // --- Runtime ---
@@ -344,4 +367,21 @@ export interface PrivacySupportStatusChangedEvent {
   contractVersion: ContractVersion;
   privacyBlackoutSupported: boolean;
   platform: string;
+}
+
+export type ModelDownloadStatus =
+  | "queued"
+  | "downloading"
+  | "completed"
+  | "failed"
+  | "canceled";
+
+export interface ModelDownloadProgressEvent {
+  contractVersion: ContractVersion;
+  modelId: string;
+  status: ModelDownloadStatus;
+  bytesDownloaded: number;
+  totalBytes: number;
+  fileName?: string;
+  error?: string;
 }

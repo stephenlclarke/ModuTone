@@ -12,9 +12,11 @@ use commands::{generation, models, platform, profiles, runtime, settings, tags};
 use services::diagnostics::init_logger;
 use services::inference::job_coordinator::JobCoordinator;
 use services::inference::model_catalog::ModelRegistry;
+use services::inference::model_downloader::ModelDownloadManager;
 use services::inference::worker_supervisor::{resolve_worker_binary_path, WorkerSupervisor};
 use services::persistence::metadata_store::MetadataStore;
 use services::platform::window_privacy::PlatformCapabilities;
+use std::sync::{Arc, Mutex};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -50,7 +52,8 @@ pub fn run() {
 
             // Initialize model registry (discovers available GGUF models)
             let model_registry = ModelRegistry::init(&data_dir, resource_dir.as_deref());
-            app.manage(model_registry);
+            app.manage(Arc::new(Mutex::new(model_registry)));
+            app.manage(ModelDownloadManager::new());
 
             // Initialize worker supervisor and job coordinator
             let worker_path = resolve_worker_binary_path().unwrap_or_else(|e| {
@@ -96,6 +99,8 @@ pub fn run() {
             tags::tags_update,
             tags::tags_delete,
             models::models_list,
+            models::model_download_start,
+            models::model_download_cancel,
             runtime::runtime_get_status,
             runtime::runtime_warm_model,
             generation::generation_start_initial,

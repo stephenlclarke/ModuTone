@@ -13,11 +13,15 @@ destroys that content.
 
 There is no session recovery feature by design.
 
-### No Automatic Network Activity
+### No Automatic Content Network Activity
 
-Inference runs locally with GGUF model files loaded by the worker process. The
-app does not send writing content to remote APIs, telemetry, or analytics
-services.
+Inference runs locally with downloaded model files loaded by the worker
+process. The app does not send writing content to remote APIs, telemetry, or
+analytics services.
+
+Model downloads are explicit user actions from Settings. When a user starts a
+download, ModuTone contacts Hugging Face only to retrieve model files and writes
+them to the app data models directory.
 
 ### No Telemetry
 
@@ -53,6 +57,7 @@ The app writes only operational metadata.
 | Settings | Theme, model alias, visual style, motion preference |
 | Profiles | User-created names and configuration |
 | Custom tags | User-created tag labels and categories |
+| Models | User-downloaded model weights and catalog metadata |
 | Logs | Redacted operational metadata |
 
 Default app data locations:

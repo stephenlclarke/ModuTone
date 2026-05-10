@@ -15,6 +15,10 @@ All notable changes to ModuTone are documented in this file.
 
 ### Changed
 
+- Add an in-app model downloader for cataloged Qwen GGUF models and the Apple
+  Silicon GPT-OSS MLX model.
+- Correct the Qwen 2.5 14B Q5_K_M catalog entry to use the official sharded
+  GGUF files.
 - Add optional Apple Silicon MLX backend support for
   `manjunathshiva/gpt-oss-20b-tq3`.
 - Add Apple Silicon setup documentation for MLX tooling and model download.

@@ -29,6 +29,8 @@ Upstream model repositories:
 
 - Qwen/Qwen2.5-3B-Instruct
 - Qwen/Qwen2.5-14B-Instruct
+- Qwen/Qwen2.5-3B-Instruct-GGUF
+- Qwen/Qwen2.5-14B-Instruct-GGUF
 - manjunathshiva/gpt-oss-20b-tq3
 - openai/gpt-oss-20b
 
@@ -37,8 +39,9 @@ Quantization to GGUF format does not change the upstream license terms.
 The GPT-OSS 20B TurboQuant model is derived from OpenAI's `gpt-oss-20b` and
 published on Hugging Face under Apache License 2.0.
 
-The source repository tracks the model catalog but not the large GGUF files.
-Builders must provide valid model files before creating release packages.
+The source repository tracks the model catalog but not the large model files.
+The app can download approved catalog models from Hugging Face, or builders can
+provide valid model files before creating release packages.
 
 ## Rust Dependencies
 
@@ -54,6 +57,7 @@ Notable Rust dependencies:
 | serde_json | MIT or Apache-2.0 | JSON serialization |
 | log | MIT or Apache-2.0 | Logging facade |
 | log4rs | MIT or Apache-2.0 | File logging |
+| reqwest | MIT or Apache-2.0 | Explicit model downloads |
 | sysinfo | MIT | System information |
 | chrono | MIT or Apache-2.0 | Date and time |
 | uuid | MIT or Apache-2.0 | ID generation |

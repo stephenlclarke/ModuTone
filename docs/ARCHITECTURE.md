@@ -26,7 +26,7 @@ Main responsibilities:
 - Render editors, model controls, settings, feedback, tabs, and status.
 - Keep session content in memory-only Zustand state.
 - Call typed IPC wrappers in `src/ipc/commands.ts`.
-- Listen for backend generation and runtime events.
+- Listen for backend generation, runtime, and model download events.
 
 State slices:
 
@@ -61,11 +61,12 @@ Initialization sequence:
 3. Initialize `MetadataStore`.
 4. Resolve Tauri's resource directory.
 5. Initialize `ModelRegistry`.
-6. Resolve the worker sidecar path.
-7. Initialize `WorkerSupervisor`.
-8. Initialize `JobCoordinator`.
-9. Probe `PlatformCapabilities`.
-10. Spawn the worker in the background.
+6. Initialize `ModelDownloadManager`.
+7. Resolve the worker sidecar path.
+8. Initialize `WorkerSupervisor`.
+9. Initialize `JobCoordinator`.
+10. Probe `PlatformCapabilities`.
+11. Spawn the worker in the background.
 
 ## Model Discovery
 
@@ -88,6 +89,11 @@ src-tauri/resources/models/
 
 Release builds use Tauri's resource resolver so Windows, macOS, Linux deb, and
 Linux AppImage layouts stay platform independent.
+
+The model downloader installs approved catalog models into the user models
+directory and refreshes the registry after a successful download. GGUF downloads
+can contain either a single file or an official shard set. The GPT-OSS MLX
+download is available only on Apple Silicon macOS.
 
 The optional MLX backend is macOS arm64 only and is documented in
 [Apple Silicon MLX Setup](APPLE_SILICON.md).
@@ -123,7 +129,7 @@ threads with cancellation tokens.
 
 ## IPC Commands
 
-The backend exposes 17 Tauri commands.
+The backend exposes 24 Tauri commands.
 
 | Category | Commands |
 | --- | --- |
@@ -132,12 +138,25 @@ The backend exposes 17 Tauri commands.
 | Profiles | `profiles_list`, `profiles_create`, `profiles_update` |
 | Profiles | `profiles_delete`, `profiles_reset_to_default` |
 | Tags | `tags_list`, `tags_create`, `tags_update`, `tags_delete` |
-| Models | `models_list` |
+| Models | `models_list`, `model_download_start` |
+| Models | `model_download_cancel` |
 | Runtime | `runtime_get_status`, `runtime_warm_model` |
 | Generation | `generation_start_initial`, `generation_start_refinement` |
 | Generation | `generation_cancel` |
 | Platform | `app_set_launch_at_login`, `app_set_tray_enabled` |
 | Platform | `app_set_privacy_blackout` |
+
+## IPC Events
+
+The backend emits:
+
+- `runtime:status-changed`
+- `worker:crashed`
+- `generation:started`
+- `generation:completed`
+- `generation:failed`
+- `generation:canceled`
+- `model:download-progress`
 
 All command wrappers return a `CommandResponse<T>` shape:
 

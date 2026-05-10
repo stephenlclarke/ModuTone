@@ -28,6 +28,8 @@ vi.mock("../../ipc/commands", () => ({
   profilesDelete: vi.fn(),
   profilesResetToDefault: vi.fn(),
   modelsList: vi.fn(),
+  modelDownloadStart: vi.fn(),
+  modelDownloadCancel: vi.fn(),
   runtimeGetStatus: vi.fn(),
 }));
 
@@ -44,6 +46,8 @@ import {
   profilesDelete,
   profilesResetToDefault,
   modelsList,
+  modelDownloadStart,
+  modelDownloadCancel,
 } from "../../ipc/commands";
 
 const mockSettingsGet = vi.mocked(settingsGet);
@@ -58,6 +62,8 @@ const mockProfilesUpdate = vi.mocked(profilesUpdate);
 const mockProfilesDelete = vi.mocked(profilesDelete);
 const mockProfilesResetToDefault = vi.mocked(profilesResetToDefault);
 const mockModelsList = vi.mocked(modelsList);
+const mockModelDownloadStart = vi.mocked(modelDownloadStart);
+const mockModelDownloadCancel = vi.mocked(modelDownloadCancel);
 
 const defaultModelsResponse = {
   models: [],
@@ -470,6 +476,9 @@ describe("metadataSlice", () => {
             isCataloged: true,
             suitability: "recommended" as const,
             quantLabel: null,
+            canDownload: true,
+            downloadSizeBytes: 2_000_000_000,
+            downloadUnavailableReason: null,
           },
         ],
         systemRamBytes: 32_000_000_000,
@@ -487,6 +496,55 @@ describe("metadataSlice", () => {
         "qwen2.5-3b-instruct",
       );
       expect(store.getState().metadata.systemRamBytes).toBe(32_000_000_000);
+    });
+
+    it("starts a model download and records queued state", async () => {
+      mockModelDownloadStart.mockResolvedValue({
+        started: true,
+        alreadyInstalled: false,
+        totalBytes: 2_000_000_000,
+      });
+
+      await store.getState().startModelDownload("qwen2.5-3b-instruct");
+
+      expect(mockModelDownloadStart).toHaveBeenCalledWith({
+        contractVersion: 1,
+        modelId: "qwen2.5-3b-instruct",
+      });
+      expect(
+        store.getState().metadata.modelDownloads["qwen2.5-3b-instruct"]?.status,
+      ).toBe("queued");
+    });
+
+    it("updates download progress from backend events", () => {
+      store.getState().handleModelDownloadProgress({
+        contractVersion: 1,
+        modelId: "qwen2.5-3b-instruct",
+        status: "downloading",
+        bytesDownloaded: 500,
+        totalBytes: 1000,
+        fileName: "qwen2.5-3b-instruct-q5_k_m.gguf",
+      });
+
+      expect(
+        store.getState().metadata.modelDownloads["qwen2.5-3b-instruct"],
+      ).toMatchObject({
+        status: "downloading",
+        bytesDownloaded: 500,
+        totalBytes: 1000,
+        fileName: "qwen2.5-3b-instruct-q5_k_m.gguf",
+      });
+    });
+
+    it("cancels a model download", async () => {
+      mockModelDownloadCancel.mockResolvedValue({ canceled: true });
+
+      await store.getState().cancelModelDownload("qwen2.5-3b-instruct");
+
+      expect(mockModelDownloadCancel).toHaveBeenCalledWith({
+        contractVersion: 1,
+        modelId: "qwen2.5-3b-instruct",
+      });
     });
   });
 
