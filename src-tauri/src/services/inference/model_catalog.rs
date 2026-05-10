@@ -1,17 +1,27 @@
 // Phase: 9
-// Model catalog — discovery and registry for GGUF model files.
+// Model catalog — discovery and registry for local model files.
 //
 // Discovers models from:
 // 1. Bundled models dir: {tauri_resource_dir}/models/ (or MODUTONE_BUNDLED_MODELS_DIR env var)
 // 2. User models dir: {app_data_dir}/models/ (or MODUTONE_USER_MODELS_DIR env var)
 //
 // Each directory may contain a model_catalog.json describing available models.
-// Discovery checks whether the actual .gguf file exists on disk.
+// Discovery checks whether the actual GGUF file or MLX model directory exists
+// on disk and is supported by the current platform.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+
+/// Inference backend needed to load a discovered model.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelBackend {
+    #[default]
+    Gguf,
+    Mlx,
+}
 
 /// A single entry in model_catalog.json.
 #[derive(Debug, Clone, Deserialize)]
@@ -19,10 +29,32 @@ use serde::Deserialize;
 pub struct CatalogEntry {
     pub model_id: String,
     pub display_name: String,
-    pub filename: String,
+    #[serde(default)]
+    pub backend: ModelBackend,
+    #[serde(default)]
+    pub filename: Option<String>,
+    #[serde(default)]
+    pub path: Option<String>,
     pub size_bytes: u64,
     pub min_ram_bytes: u64,
     pub ram_class_label: String,
+}
+
+impl CatalogEntry {
+    fn storage_path(&self) -> Result<&str, String> {
+        match self.backend {
+            ModelBackend::Gguf => self
+                .filename
+                .as_deref()
+                .or(self.path.as_deref())
+                .ok_or_else(|| "GGUF catalog entries require filename".to_string()),
+            ModelBackend::Mlx => self
+                .path
+                .as_deref()
+                .or(self.filename.as_deref())
+                .ok_or_else(|| "MLX catalog entries require path".to_string()),
+        }
+    }
 }
 
 /// A model discovered at runtime with resolved path and install status.
@@ -31,10 +63,11 @@ pub struct DiscoveredModel {
     pub id: String,
     pub display_name: String,
     pub filename: String,
+    pub backend: ModelBackend,
     pub size_bytes: u64,
     pub min_ram_bytes: u64,
     pub ram_class_label: String,
-    pub gguf_path: PathBuf,
+    pub model_path: PathBuf,
     pub is_installed: bool,
     pub is_cataloged: bool,
     pub quant_label: Option<String>,
@@ -123,7 +156,7 @@ fn resolve_bundled_models_dir(resource_dir: Option<&Path>) -> Option<PathBuf> {
     }
 
     // In debug/dev builds, prefer the source tree resources directory.
-    // This ensures the developer's actual GGUF files in src-tauri/resources/models/
+    // This ensures the developer's actual local models in src-tauri/resources/models/
     // are found, even when target/debug/models/ exists (Tauri copies resources there).
     #[cfg(debug_assertions)]
     {
@@ -276,6 +309,70 @@ fn validate_file_installed(path: &Path, expected_size: u64) -> bool {
     true
 }
 
+fn backend_supported(backend: ModelBackend) -> bool {
+    match backend {
+        ModelBackend::Gguf => true,
+        ModelBackend::Mlx => cfg!(all(target_os = "macos", target_arch = "aarch64")),
+    }
+}
+
+fn validate_mlx_model_installed(path: &Path) -> bool {
+    if !backend_supported(ModelBackend::Mlx) {
+        return false;
+    }
+    looks_like_mlx_model_dir(path)
+}
+
+fn looks_like_mlx_model_dir(path: &Path) -> bool {
+    path.is_dir()
+        && path.join("config.json").is_file()
+        && path.join("tokenizer.json").is_file()
+        && directory_has_extension(path, "safetensors")
+}
+
+fn directory_has_extension(path: &Path, extension: &str) -> bool {
+    let entries = match std::fs::read_dir(path) {
+        Ok(entries) => entries,
+        Err(_) => return false,
+    };
+
+    for entry in entries.filter_map(|entry| entry.ok()) {
+        let path = entry.path();
+        if path.is_file()
+            && path
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case(extension))
+        {
+            return true;
+        }
+    }
+
+    false
+}
+
+fn directory_size_bytes(path: &Path) -> u64 {
+    let entries = match std::fs::read_dir(path) {
+        Ok(entries) => entries,
+        Err(_) => return 0,
+    };
+
+    let mut total = 0;
+    for entry in entries.filter_map(|entry| entry.ok()) {
+        let path = entry.path();
+        let metadata = match entry.metadata() {
+            Ok(metadata) => metadata,
+            Err(_) => continue,
+        };
+        if metadata.is_file() {
+            total += metadata.len();
+        } else if metadata.is_dir() {
+            total += directory_size_bytes(&path);
+        }
+    }
+
+    total
+}
+
 /// Check if a string starts with a quantization prefix (case-insensitive).
 /// Matches: q[0-9], iq[0-9], f[0-9], bf[0-9]
 fn starts_with_quant_prefix(s: &str) -> bool {
@@ -358,6 +455,41 @@ fn parse_gguf_stem(stem: &str) -> (String, Option<String>) {
     (clean, quant_label)
 }
 
+fn parse_model_dir_name(dirname: &str) -> String {
+    dirname
+        .replace(['-', '_'], " ")
+        .split_whitespace()
+        .map(|word| {
+            if word.eq_ignore_ascii_case("mlx") {
+                return "MLX".to_string();
+            }
+            if word.eq_ignore_ascii_case("gpt") {
+                return "GPT".to_string();
+            }
+            if word.eq_ignore_ascii_case("oss") {
+                return "OSS".to_string();
+            }
+            if word.eq_ignore_ascii_case("tq3") {
+                return "TQ3".to_string();
+            }
+            let has_digit = word.bytes().any(|b| b.is_ascii_digit());
+            let has_alpha = word.bytes().any(|b| b.is_ascii_alphabetic());
+            if has_digit && has_alpha && word.len() <= 4 {
+                return word.to_uppercase();
+            }
+            let mut chars = word.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(first) => {
+                    let upper: String = first.to_uppercase().collect();
+                    upper + chars.as_str()
+                }
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Discover models from a directory.
 ///
 /// Phase 1: Read model_catalog.json for curated catalog entries.
@@ -366,6 +498,7 @@ fn discover_from_directory(dir: &Path) -> Result<Vec<DiscoveredModel>, String> {
     let mut models = Vec::new();
     let mut cataloged_filenames: HashSet<String> = HashSet::new();
     let mut cataloged_stems: HashSet<String> = HashSet::new();
+    let mut cataloged_model_paths: HashSet<String> = HashSet::new();
 
     // Phase 1: Catalog-driven discovery
     let catalog_path = dir.join("model_catalog.json");
@@ -376,48 +509,59 @@ fn discover_from_directory(dir: &Path) -> Result<Vec<DiscoveredModel>, String> {
         let entries = parse_catalog(&json)?;
 
         for entry in entries {
-            // Track both the full filename and the stem (without .gguf).
-            // The stem is used to deduplicate shard groups whose base_name
-            // matches a cataloged merged file (e.g. shards for a model that
-            // also has a merged single-file catalog entry).
-            if let Some(stem) = entry
-                .filename
-                .strip_suffix(".gguf")
-                .or_else(|| entry.filename.strip_suffix(".GGUF"))
-            {
-                cataloged_stems.insert(stem.to_string());
-            }
-            cataloged_filenames.insert(entry.filename.clone());
-            let gguf_path = dir.join(&entry.filename);
+            let storage_path = entry
+                .storage_path()
+                .map_err(|e| format!("Invalid catalog entry '{}': {}", entry.model_id, e))?
+                .to_string();
+            let model_path = dir.join(&storage_path);
 
-            // Validate both existence and file size.
-            // A file that exists but is significantly smaller than expected
-            // (e.g. truncated/interrupted download) is NOT considered installed.
-            let is_installed = validate_file_installed(&gguf_path, entry.size_bytes);
+            let is_installed = match entry.backend {
+                ModelBackend::Gguf => {
+                    // Track both the full filename and the stem (without .gguf).
+                    // The stem is used to deduplicate shard groups whose base_name
+                    // matches a cataloged merged file.
+                    if let Some(stem) = storage_path
+                        .strip_suffix(".gguf")
+                        .or_else(|| storage_path.strip_suffix(".GGUF"))
+                    {
+                        cataloged_stems.insert(stem.to_string());
+                    }
+                    cataloged_filenames.insert(storage_path.clone());
 
-            // Only suppress shard groups if the merged file is actually valid.
-            // If it's missing or truncated, allow shard groups to surface.
-            if !is_installed {
-                if let Some(stem) = entry
-                    .filename
-                    .strip_suffix(".gguf")
-                    .or_else(|| entry.filename.strip_suffix(".GGUF"))
-                {
-                    cataloged_stems.remove(stem);
+                    // Validate both existence and file size. A file that exists
+                    // but is significantly smaller than expected is not installed.
+                    let installed = validate_file_installed(&model_path, entry.size_bytes);
+
+                    // Only suppress shard groups if the merged file is valid.
+                    if !installed {
+                        if let Some(stem) = storage_path
+                            .strip_suffix(".gguf")
+                            .or_else(|| storage_path.strip_suffix(".GGUF"))
+                        {
+                            cataloged_stems.remove(stem);
+                        }
+                    }
+
+                    installed
                 }
-            }
+                ModelBackend::Mlx => {
+                    cataloged_model_paths.insert(storage_path.clone());
+                    validate_mlx_model_installed(&model_path)
+                }
+            };
 
             models.push(DiscoveredModel {
                 id: entry.model_id,
                 display_name: entry.display_name,
-                filename: entry.filename,
+                filename: storage_path,
+                backend: entry.backend,
                 size_bytes: entry.size_bytes,
                 min_ram_bytes: entry.min_ram_bytes,
                 ram_class_label: entry.ram_class_label,
-                gguf_path,
+                model_path,
                 is_installed,
                 is_cataloged: true,
-                quant_label: None, // Cataloged models have curated names
+                quant_label: None,
             });
         }
     }
@@ -499,10 +643,11 @@ fn discover_from_directory(dir: &Path) -> Result<Vec<DiscoveredModel>, String> {
                 id: format!("local-{}-{}", stem, file.size),
                 display_name: clean_name,
                 filename: file.filename,
+                backend: ModelBackend::Gguf,
                 size_bytes: file.size,
                 min_ram_bytes: min_ram,
                 ram_class_label: ram_label,
-                gguf_path: file.path,
+                model_path: file.path,
                 is_installed: true,
                 is_cataloged: false,
                 quant_label,
@@ -552,13 +697,52 @@ fn discover_from_directory(dir: &Path) -> Result<Vec<DiscoveredModel>, String> {
                 id: format!("local-{}-{}", base_name, total_size),
                 display_name: clean_name,
                 filename: first_shard.filename.clone(),
+                backend: ModelBackend::Gguf,
                 size_bytes: total_size,
                 min_ram_bytes: min_ram,
                 ram_class_label: ram_label,
-                gguf_path: first_shard.path.clone(),
+                model_path: first_shard.path.clone(),
                 is_installed: is_complete,
                 is_cataloged: false,
                 quant_label,
+            });
+        }
+
+        for entry in std::fs::read_dir(dir)
+            .map_err(|e| format!("Failed to read directory {}: {}", dir.display(), e))?
+            .filter_map(|entry| entry.ok())
+        {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+
+            let dirname = match path.file_name() {
+                Some(name) => name.to_string_lossy().to_string(),
+                None => continue,
+            };
+
+            if cataloged_model_paths.contains(&dirname) || !looks_like_mlx_model_dir(&path) {
+                continue;
+            }
+
+            let size = directory_size_bytes(&path);
+            let min_ram = estimate_min_ram_bytes(size);
+            let ram_label = estimate_ram_class_label(min_ram);
+            let display_name = parse_model_dir_name(&dirname);
+
+            models.push(DiscoveredModel {
+                id: format!("local-mlx-{}-{}", dirname, size),
+                display_name,
+                filename: dirname,
+                backend: ModelBackend::Mlx,
+                size_bytes: size,
+                min_ram_bytes: min_ram,
+                ram_class_label: ram_label,
+                model_path: path,
+                is_installed: backend_supported(ModelBackend::Mlx),
+                is_cataloged: false,
+                quant_label: Some("MLX".to_string()),
             });
         }
     }
@@ -596,11 +780,36 @@ mod tests {
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].model_id, "qwen2.5-3b-instruct");
         assert_eq!(entries[0].display_name, "Qwen 2.5 3B Instruct");
-        assert_eq!(entries[0].filename, "qwen2.5-3b-instruct-q5_k_m.gguf");
+        assert_eq!(
+            entries[0].filename.as_deref(),
+            Some("qwen2.5-3b-instruct-q5_k_m.gguf")
+        );
+        assert_eq!(entries[0].backend, ModelBackend::Gguf);
         assert_eq!(entries[0].size_bytes, 2_438_740_384);
         assert_eq!(entries[0].min_ram_bytes, 8_000_000_000);
         assert_eq!(entries[0].ram_class_label, "~8 GB");
         assert_eq!(entries[1].model_id, "qwen2.5-14b-instruct");
+    }
+
+    #[test]
+    fn parse_catalog_supports_mlx_entry() {
+        let json = r#"[
+            {
+                "modelId": "gpt-oss-20b-tq3",
+                "displayName": "GPT-OSS 20B TurboQuant 3-bit",
+                "backend": "mlx",
+                "path": "gpt-oss-20b-tq3",
+                "sizeBytes": 9970000000,
+                "minRamBytes": 16000000000,
+                "ramClassLabel": "~16 GB"
+            }
+        ]"#;
+
+        let entries = parse_catalog(json).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].backend, ModelBackend::Mlx);
+        assert_eq!(entries[0].path.as_deref(), Some("gpt-oss-20b-tq3"));
+        assert_eq!(entries[0].storage_path().unwrap(), "gpt-oss-20b-tq3");
     }
 
     #[test]
@@ -676,6 +885,34 @@ mod tests {
         assert!(models[0].is_cataloged);
         assert!(!models[1].is_installed);
         assert!(models[1].is_cataloged);
+    }
+
+    #[test]
+    fn discovery_catalog_with_mlx_directory() {
+        let tmp = tempfile::tempdir().unwrap();
+        let catalog = r#"[
+            {
+                "modelId": "gpt-oss-20b-tq3",
+                "displayName": "GPT-OSS 20B TurboQuant 3-bit",
+                "backend": "mlx",
+                "path": "gpt-oss-20b-tq3",
+                "sizeBytes": 100,
+                "minRamBytes": 16000000000,
+                "ramClassLabel": "~16 GB"
+            }
+        ]"#;
+        fs::write(tmp.path().join("model_catalog.json"), catalog).unwrap();
+        let model_dir = tmp.path().join("gpt-oss-20b-tq3");
+        fs::create_dir(&model_dir).unwrap();
+        fs::write(model_dir.join("config.json"), "{}").unwrap();
+        fs::write(model_dir.join("tokenizer.json"), "{}").unwrap();
+        fs::write(model_dir.join("model.safetensors"), "weights").unwrap();
+
+        let models = discover_from_directory(tmp.path()).unwrap();
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].backend, ModelBackend::Mlx);
+        assert_eq!(models[0].filename, "gpt-oss-20b-tq3");
+        assert_eq!(models[0].is_installed, backend_supported(ModelBackend::Mlx));
     }
 
     #[test]

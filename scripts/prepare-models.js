@@ -5,12 +5,15 @@
 // time by the NSIS POSTINSTALL hook. This script validates that the
 // model files in src-tauri/resources/models/ match the catalog.
 //
+// Apple Silicon builds can also use MLX model directories. These are
+// validated only on macOS arm64 because the runtime is platform specific.
+//
 // Usage:
 //   node scripts/prepare-models.js
 //
-// Reads from: src-tauri/resources/models/*.gguf + model_catalog.json
+// Reads from: src-tauri/resources/models/* + model_catalog.json
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -21,6 +24,32 @@ const catalogPath = join(modelsDir, "model_catalog.json");
 
 // Must match INSTALLED_SIZE_THRESHOLD in model_catalog.rs
 const INSTALLED_SIZE_THRESHOLD = 0.9;
+const supportsMlx = process.platform === "darwin" && process.arch === "arm64";
+
+function entryBackend(entry) {
+  return entry.backend ?? "gguf";
+}
+
+function entryStoragePath(entry) {
+  if (entryBackend(entry) === "mlx") {
+    return entry.path ?? entry.filename;
+  }
+  return entry.filename ?? entry.path;
+}
+
+function hasFileWithExtension(directory, extension) {
+  return readdirSync(directory).some((file) =>
+    file.toLowerCase().endsWith(extension),
+  );
+}
+
+function looksLikeMlxModelDirectory(directory) {
+  return (
+    existsSync(join(directory, "config.json")) &&
+    existsSync(join(directory, "tokenizer.json")) &&
+    hasFileWithExtension(directory, ".safetensors")
+  );
+}
 
 // Read catalog
 const catalog = JSON.parse(readFileSync(catalogPath, "utf-8"));
@@ -37,23 +66,26 @@ const ggufFiles = readdirSync(modelsDir)
 console.log(`Found ${ggufFiles.length} GGUF file(s) in ${modelsDir}`);
 console.log();
 
-let validCount = 0;
+let validGgufCount = 0;
+let validMlxCount = 0;
 let skippedCount = 0;
 
 for (const file of ggufFiles) {
-  const entry = catalog.find((e) => e.filename === file.filename);
+  const entry = catalog.find(
+    (e) => entryBackend(e) === "gguf" && entryStoragePath(e) === file.filename,
+  );
   if (!entry) {
     console.log(
       `  [UNCATALOGED] ${file.filename} (${(file.size / 1e9).toFixed(2)} GB)`,
     );
-    validCount++;
+    validGgufCount++;
     continue;
   }
 
   const minSize = Math.floor(entry.sizeBytes * INSTALLED_SIZE_THRESHOLD);
   if (file.size < minSize) {
     console.warn(
-      `  [TRUNCATED]   ${file.filename} — ` +
+      `  [TRUNCATED]   ${file.filename} - ` +
         `${(file.size / 1e9).toFixed(2)} GB of expected ${(entry.sizeBytes / 1e9).toFixed(2)} GB ` +
         `(${((file.size / entry.sizeBytes) * 100).toFixed(1)}%)`,
     );
@@ -62,25 +94,66 @@ for (const file of ggufFiles) {
     console.log(
       `  [OK]          ${file.filename} (${(file.size / 1e9).toFixed(2)} GB)`,
     );
-    validCount++;
+    validGgufCount++;
   }
 }
 
+const mlxEntries = catalog.filter((entry) => entryBackend(entry) === "mlx");
+if (mlxEntries.length > 0) {
+  const entryLabel = mlxEntries.length === 1 ? "entry" : "entries";
+  console.log();
+  console.log(`Found ${mlxEntries.length} MLX catalog ${entryLabel}`);
+}
+
+for (const entry of mlxEntries) {
+  const storagePath = entryStoragePath(entry);
+  const modelPath = storagePath ? join(modelsDir, storagePath) : undefined;
+
+  if (!supportsMlx) {
+    console.log(
+      `  [UNSUPPORTED] ${entry.displayName} - MLX requires Apple Silicon macOS`,
+    );
+    continue;
+  }
+
+  if (!storagePath || !modelPath || !existsSync(modelPath)) {
+    console.warn(`  [MISSING]     ${entry.displayName}`);
+    skippedCount++;
+    continue;
+  }
+
+  if (
+    !statSync(modelPath).isDirectory() ||
+    !looksLikeMlxModelDirectory(modelPath)
+  ) {
+    console.warn(
+      `  [INVALID]     ${entry.displayName} - expected config.json, tokenizer.json, and .safetensors files`,
+    );
+    skippedCount++;
+    continue;
+  }
+
+  console.log(`  [OK]          ${entry.displayName} (${storagePath})`);
+  validMlxCount++;
+}
+
 console.log();
-console.log(`Models: ${validCount} valid, ${skippedCount} truncated/invalid`);
+console.log(
+  `Models: ${validGgufCount + validMlxCount} valid ` +
+    `(${validGgufCount} GGUF, ${validMlxCount} MLX), ` +
+    `${skippedCount} truncated/invalid`,
+);
 
 if (skippedCount > 0) {
+  console.warn("\nWarning: invalid models will not be discovered by the app.");
   console.warn(
-    "\nWarning: truncated models will not be discovered by the app.",
-  );
-  console.warn(
-    "Re-download the full model files to include them in the distribution.",
+    "Re-download the full model files or directory to include them in the distribution.",
   );
 }
 
-if (validCount === 0) {
+if (validGgufCount + validMlxCount === 0) {
   console.error(
-    "\nERROR: No valid GGUF model files found. Packaging requires at least one valid model file.",
+    "\nERROR: No valid model files found. Packaging requires at least one valid GGUF file or supported MLX model directory.",
   );
   process.exit(1);
 }

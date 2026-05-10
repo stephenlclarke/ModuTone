@@ -7,6 +7,13 @@
 
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelBackend {
+    Gguf,
+    Mlx,
+}
+
 // --- Backend → Worker (Inbound) ---
 
 #[derive(Debug, Clone, Deserialize)]
@@ -15,6 +22,7 @@ pub enum InboundMessage {
     LoadModel {
         #[serde(rename = "modelId")]
         model_id: String,
+        backend: ModelBackend,
         #[serde(rename = "modelPath")]
         model_path: String,
     },

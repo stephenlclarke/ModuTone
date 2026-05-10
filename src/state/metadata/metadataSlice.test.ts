@@ -462,6 +462,7 @@ describe("metadataSlice", () => {
           {
             id: "qwen2.5-3b-instruct",
             displayName: "Qwen 2.5 3B Instruct",
+            backend: "gguf" as const,
             sizeBytes: 2_000_000_000,
             ramClassLabel: "~8 GB",
             minRamBytes: 8_000_000_000,

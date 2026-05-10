@@ -69,7 +69,8 @@ Initialization sequence:
 
 ## Model Discovery
 
-The model registry discovers GGUF files from two locations:
+The model registry discovers GGUF files and Apple Silicon MLX model directories
+from two locations:
 
 1. Bundled models under Tauri's resource directory at `models/`.
 2. User models under the app data directory at `models/`.
@@ -88,12 +89,16 @@ src-tauri/resources/models/
 Release builds use Tauri's resource resolver so Windows, macOS, Linux deb, and
 Linux AppImage layouts stay platform independent.
 
+The optional MLX backend is macOS arm64 only and is documented in
+[Apple Silicon MLX Setup](APPLE_SILICON.md).
+
 ## Worker
 
 Location: `src-worker/`
 
-The worker is a Rust sidecar that owns model loading and inference through
-llama.cpp.
+The worker is a Rust sidecar that owns model loading and inference. GGUF models
+use llama.cpp. Apple Silicon MLX models use a Python bridge through the same
+worker protocol.
 
 Inbound messages:
 

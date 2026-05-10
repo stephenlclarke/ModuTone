@@ -14,5 +14,14 @@
     "sizeBytes": 2742898688,
     "minRamBytes": 24000000000,
     "ramClassLabel": "~24 GB"
+  },
+  {
+    "modelId": "gpt-oss-20b-tq3",
+    "displayName": "GPT-OSS 20B TurboQuant 3-bit",
+    "backend": "mlx",
+    "path": "gpt-oss-20b-tq3",
+    "sizeBytes": 9970000000,
+    "minRamBytes": 16000000000,
+    "ramClassLabel": "~16 GB"
   }
 ]

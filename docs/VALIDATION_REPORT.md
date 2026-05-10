@@ -9,9 +9,9 @@ Last local validation: 2026-05-10.
 | Category | Framework | Count | Status |
 | --- | --- | --- | --- |
 | TypeScript, frontend, and contract | Vitest | 239 | Pass |
-| Rust backend and worker | Cargo test | 173 | Pass |
+| Rust backend and worker | Cargo test | 176 | Pass |
 | E2E smoke | Playwright | 1 | Pass |
-| Total | Mixed | 413 | Pass |
+| Total | Mixed | 416 | Pass |
 
 ## TypeScript Tests
 
@@ -43,10 +43,11 @@ Test files:
 
 ## Rust Tests
 
-`npm run test:rust` builds the worker sidecar and runs 173 Rust tests across:
+`npm run test:rust` builds the worker sidecar and runs 176 Rust tests across:
 
 - Command validation.
 - Model catalog discovery.
+- Apple Silicon MLX backend protocol handling.
 - Worker supervision.
 - Job coordination.
 - Prompt composition.

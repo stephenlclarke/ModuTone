@@ -42,6 +42,11 @@ Clippy and rustfmt are available:
 rustup component add clippy rustfmt
 ```
 
+Apple Silicon Macs can also run the optional MLX backend for
+`manjunathshiva/gpt-oss-20b-tq3`. See
+[Apple Silicon MLX Setup](APPLE_SILICON.md) for the Python, MLX, Hugging Face,
+and model download steps.
+
 ### Linux
 
 On Debian or Ubuntu based systems, install Tauri's WebKit dependencies:
@@ -171,7 +176,7 @@ On Intel macOS, expect the architecture suffix to differ.
 ## Model Files
 
 Model files are required for inference and release packaging. The repository
-tracks `src-tauri/resources/models/model_catalog.json`, but not the large GGUF
+tracks `src-tauri/resources/models/model_catalog.json`, but not large model
 weights.
 
 Place valid model files in:
@@ -186,10 +191,16 @@ Expected filenames:
 | --- | --- |
 | Qwen 2.5 3B Instruct | `qwen2.5-3b-instruct-q5_k_m.gguf` |
 | Qwen 2.5 14B Instruct | `qwen2.5-14b-instruct-q5_k_m.gguf` |
+| GPT-OSS 20B TurboQuant 3-bit | `gpt-oss-20b-tq3/` |
 
 Download the matching Q5_K_M GGUF variants from the upstream Qwen model pages
-on Hugging Face. The catalog checks filenames and rejects truncated files that
-are below the install-size threshold.
+on Hugging Face. On Apple Silicon, download
+`manjunathshiva/gpt-oss-20b-tq3` as an MLX model directory by following
+[Apple Silicon MLX Setup](APPLE_SILICON.md).
+
+The catalog checks GGUF filenames and rejects truncated GGUF files that are
+below the install-size threshold. MLX model directories must contain
+`config.json`, `tokenizer.json`, and at least one `.safetensors` file.
 
 Validate local model files with:
 
@@ -197,7 +208,8 @@ Validate local model files with:
 npm run prepare:models
 ```
 
-This command fails when no valid GGUF files are present.
+This command fails when no valid GGUF files are present. On Apple Silicon, a
+valid `gpt-oss-20b-tq3/` MLX model directory also satisfies the check.
 
 ## Packaging with Models
 

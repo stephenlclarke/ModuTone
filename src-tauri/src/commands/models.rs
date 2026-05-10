@@ -6,7 +6,7 @@ use tauri::State;
 use crate::contracts::commands::{ModelEntry, ModelsListResponse};
 use crate::contracts::errors::IpcError;
 use crate::contracts::shared::ModelSuitability;
-use crate::services::inference::model_catalog::ModelRegistry;
+use crate::services::inference::model_catalog::{ModelBackend, ModelRegistry};
 
 fn compute_suitability(system_ram_bytes: u64, min_ram_bytes: u64) -> ModelSuitability {
     let threshold_recommended = min_ram_bytes + min_ram_bytes / 2; // 1.5x
@@ -38,6 +38,10 @@ pub async fn models_list(
         .map(|m| ModelEntry {
             id: m.id.clone(),
             display_name: m.display_name.clone(),
+            backend: match m.backend {
+                ModelBackend::Gguf => "gguf".to_string(),
+                ModelBackend::Mlx => "mlx".to_string(),
+            },
             size_bytes: m.size_bytes,
             ram_class_label: m.ram_class_label.clone(),
             min_ram_bytes: m.min_ram_bytes,

@@ -6,8 +6,9 @@ ModuTone is a privacy-first desktop writing refinement app. It runs local
 language models on your machine and does not send writing content to cloud
 services, telemetry, or remote APIs.
 
-Built with [Tauri 2](https://tauri.app/), React, TypeScript, Rust, and
-[llama.cpp](https://github.com/ggerganov/llama.cpp).
+Built with [Tauri 2](https://tauri.app/), React, TypeScript, Rust,
+[llama.cpp](https://github.com/ggerganov/llama.cpp), and optional
+[MLX](https://github.com/ml-explore/mlx) support on Apple Silicon.
 
 ## What It Does
 
@@ -24,7 +25,8 @@ it.
 
 - **Privacy by default:** No writing content is persisted to disk, logged, or
   transmitted.
-- **Local inference:** Generation runs on-device with GGUF model files.
+- **Local inference:** Generation runs on-device with local GGUF files or an
+  Apple Silicon MLX model directory.
 - **Non-destructive editing:** Proposed output stays separate until accepted.
 - **Composable style controls:** Tags and profiles express writing intent.
 
@@ -48,7 +50,7 @@ ModuTone uses a three-process architecture:
 | --- | --- | --- |
 | Frontend | React, TypeScript, Zustand | UI and state |
 | Backend | Rust, Tauri 2 | IPC, persistence, supervision |
-| Worker | Rust, llama.cpp | Model loading and inference |
+| Worker | Rust, llama.cpp, optional MLX | Model loading and inference |
 
 The frontend talks to the backend through typed Tauri IPC commands. The backend
 manages the worker sidecar over a stdin/stdout JSON Lines protocol.
@@ -59,14 +61,14 @@ manages the worker sidecar over a stdin/stdout JSON Lines protocol.
 flowchart TD
     A[Writer enters text] --> B[Select profile, tags, and model]
     B --> C{Model ready?}
-    C -- No --> D[Warm selected GGUF model]
+    C -- No --> D[Warm selected local model]
     D --> E[Worker sidecar loads model]
     E --> F[Ready for generation]
     C -- Yes --> F
     F --> G[Generate or refine]
     G --> H[React state sends Tauri IPC command]
     H --> I[Rust backend validates request and composes prompt]
-    I --> J[Worker runs llama.cpp inference locally]
+    I --> J[Worker runs llama.cpp or MLX inference locally]
     J --> K[Backend emits generation events]
     K --> L[Frontend updates accepted output or proposal]
     L --> M{Refine again?}
@@ -96,7 +98,7 @@ macOS and Linux packages can be built from source. See
 | Requirement | Minimum |
 | --- | --- |
 | OS | Windows 11 x64, macOS, or Linux |
-| RAM | 8 GB for 3B model, 24 GB for 14B model |
+| RAM | 8 GB for 3B model, 16 GB for MLX TQ3, 24 GB for 14B model |
 | Disk | About 6 GB for app plus bundled models |
 
 ModuTone detects available RAM and labels models as recommended, caution, or
@@ -118,17 +120,19 @@ npm run build
 
 Model files are required for inference and release packaging. See
 [Build from Source](docs/BUILD_FROM_SOURCE.md) for model setup and packaging
-commands.
+commands. On Apple Silicon, see
+[Apple Silicon MLX Setup](docs/APPLE_SILICON.md) to run
+`manjunathshiva/gpt-oss-20b-tq3`.
 
 ## Testing
 
-Current local validation covers 413 test cases:
+Current local validation covers 416 test cases:
 
 ```bash
 # Frontend, contract, and TypeScript tests: 239 tests
 npm run test
 
-# Rust backend and worker tests: 173 tests
+# Rust backend and worker tests: 176 tests
 npm run test:rust
 
 # Playwright smoke test: 1 test
@@ -157,6 +161,7 @@ docs/                 Project documentation
 | [Privacy](docs/PRIVACY.md) | Content lifecycle and local-only guarantees |
 | [Installation](docs/INSTALLATION.md) | Release installation steps |
 | [Build from Source](docs/BUILD_FROM_SOURCE.md) | Build and packaging workflow |
+| [Apple Silicon MLX Setup](docs/APPLE_SILICON.md) | GPT-OSS 20B TQ3 setup for Apple Silicon |
 | [Windows Release](docs/WINDOWS_RELEASE.md) | Windows installer details |
 | [Validation Report](docs/VALIDATION_REPORT.md) | Test and CI coverage |
 | [Model Licenses](docs/MODEL_LICENSES.md) | Code, dependency, and model licenses |
@@ -166,8 +171,10 @@ docs/                 Project documentation
 
 - **Frontend:** React 18, TypeScript 5.6, Zustand 5, Vite 6
 - **Backend:** Rust, Tauri 2, Tokio, Serde, log4rs
-- **Inference:** llama-cpp-2 bindings for llama.cpp
-- **Models:** Qwen 2.5 GGUF files
+- **Inference:** llama-cpp-2 bindings for llama.cpp; optional MLX bridge on
+  Apple Silicon
+- **Models:** Qwen 2.5 GGUF files; optional GPT-OSS 20B TQ3 MLX model on
+  Apple Silicon
 - **Testing:** Vitest 3, Playwright, Cargo test
 - **CI:** GitHub Actions on Ubuntu, Windows, and macOS
 

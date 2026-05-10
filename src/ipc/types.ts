@@ -190,6 +190,7 @@ export interface TagDeleteResponse {
 export interface ModelEntry {
   id: string;
   displayName: string;
+  backend: "gguf" | "mlx";
   sizeBytes: number;
   ramClassLabel: string;
   minRamBytes: number;

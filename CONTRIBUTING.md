@@ -11,6 +11,10 @@ and pull request expectations.
    - Rust stable with `clippy` and `rustfmt`
    - Platform dependencies required by Tauri
 
+   On Apple Silicon, see
+   [Apple Silicon MLX Setup](docs/APPLE_SILICON.md) for the complete macOS
+   toolchain, optional MLX runtime, and GPT-OSS model setup.
+
 2. Clone and install dependencies:
 
    ```bash

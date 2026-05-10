@@ -15,20 +15,27 @@ This license does not cover model weights.
 ## Model Weights
 
 Release packages may bundle quantized GGUF files derived from Alibaba Cloud's
-Qwen 2.5 model family.
+Qwen 2.5 model family. Apple Silicon local builds can also use the optional
+GPT-OSS 20B TurboQuant MLX model directory documented in
+[Apple Silicon MLX Setup](APPLE_SILICON.md).
 
 | Model | Quantization | License |
 | --- | --- | --- |
 | Qwen 2.5 3B Instruct | Q5_K_M | Apache 2.0 |
 | Qwen 2.5 14B Instruct | Q5_K_M | Apache 2.0 |
+| GPT-OSS 20B TurboQuant 3-bit | MLX TurboQuant 3-bit | Apache 2.0 |
 
 Upstream model repositories:
 
 - Qwen/Qwen2.5-3B-Instruct
 - Qwen/Qwen2.5-14B-Instruct
+- manjunathshiva/gpt-oss-20b-tq3
+- openai/gpt-oss-20b
 
 The Qwen 2.5 models are released by Alibaba Cloud under Apache License 2.0.
 Quantization to GGUF format does not change the upstream license terms.
+The GPT-OSS 20B TurboQuant model is derived from OpenAI's `gpt-oss-20b` and
+published on Hugging Face under Apache License 2.0.
 
 The source repository tracks the model catalog but not the large GGUF files.
 Builders must provide valid model files before creating release packages.
@@ -74,6 +81,9 @@ Notable JavaScript dependencies:
 | Library | License | Purpose |
 | --- | --- | --- |
 | llama.cpp | MIT | Local model inference |
+| MLX | MIT | Apple Silicon local model inference |
+| mlx-lm | MIT | Apple Silicon model loading and generation |
+| turboquant-mlx-full | Apache 2.0 | TurboQuant MLX runtime support |
 
 Exact dependency versions are pinned in:
 

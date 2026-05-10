@@ -4,7 +4,7 @@ use tauri::{AppHandle, State};
 
 use crate::contracts::commands::{RuntimeStatusResponse, WarmModelRequest};
 use crate::contracts::errors::IpcError;
-use crate::services::inference::model_catalog::ModelRegistry;
+use crate::services::inference::model_catalog::{ModelBackend, ModelRegistry};
 use crate::services::inference::worker_protocol::WorkerInbound;
 use crate::services::inference::worker_supervisor::{WorkerProcessState, WorkerSupervisor};
 use crate::services::persistence::metadata_store::MetadataStore;
@@ -77,10 +77,10 @@ pub async fn runtime_warm_model(
         return Err(IpcError {
             code: "MODEL_NOT_INSTALLED".to_string(),
             message: format!(
-                "Model '{}' is in the catalog but the GGUF file is not present on disk",
+                "Model '{}' is in the catalog but the model files are not present or supported",
                 request.model_id
             ),
-            detail: Some(format!("Expected at: {}", model.gguf_path.display())),
+            detail: Some(format!("Expected at: {}", model.model_path.display())),
             subsystem: "inference".to_string(),
         });
     }
@@ -93,10 +93,14 @@ pub async fn runtime_warm_model(
         subsystem: "inference".to_string(),
     })?;
 
-    // Send load_model to worker with real GGUF path
+    // Send load_model to worker with real model path and backend hint.
     let msg = WorkerInbound::LoadModel {
         model_id: request.model_id.clone(),
-        model_path: model.gguf_path.to_string_lossy().to_string(),
+        backend: match model.backend {
+            ModelBackend::Gguf => crate::services::inference::worker_protocol::ModelBackend::Gguf,
+            ModelBackend::Mlx => crate::services::inference::worker_protocol::ModelBackend::Mlx,
+        },
+        model_path: model.model_path.to_string_lossy().to_string(),
     };
 
     if let Err(e) = supervisor.send_to_worker(&msg).await {

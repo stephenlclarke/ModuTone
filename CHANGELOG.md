@@ -15,6 +15,9 @@ All notable changes to ModuTone are documented in this file.
 
 ### Changed
 
+- Add optional Apple Silicon MLX backend support for
+  `manjunathshiva/gpt-oss-20b-tq3`.
+- Add Apple Silicon setup documentation for MLX tooling and model download.
 - Document current Windows, macOS, and Linux build status.
 - Update installer filenames, model packaging requirements, and test counts.
 - Add Rust workspace tests to each OS leg of the CI build matrix.

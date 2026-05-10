@@ -82,7 +82,8 @@ export function ModelSelector() {
   /** Format a model option label: Name (RAM class) */
   function formatModelLabel(model: (typeof models)[number]): string {
     const name = resolveModelDisplayName(model.id, models, aliases);
-    return `${name} (${model.ramClassLabel})`;
+    const backend = model.backend === "mlx" ? "MLX" : "GGUF";
+    return `${name} (${backend}, ${model.ramClassLabel})`;
   }
 
   if (models.length === 0) {
@@ -90,7 +91,8 @@ export function ModelSelector() {
       <div className="model-selector" data-testid="model-selector">
         <span className="model-selector-empty">No models available</span>
         <p className="settings-sublabel">
-          Place a GGUF model file in the models folder, then restart to begin.
+          Place a GGUF model file or MLX model folder in the models folder, then
+          restart to begin.
         </p>
       </div>
     );
@@ -103,7 +105,8 @@ export function ModelSelector() {
           <option>No models installed</option>
         </select>
         <p className="settings-sublabel">
-          Place a GGUF model file in the models folder, then restart to begin.
+          Place a GGUF model file or MLX model folder in the models folder, then
+          restart to begin.
         </p>
       </div>
     );

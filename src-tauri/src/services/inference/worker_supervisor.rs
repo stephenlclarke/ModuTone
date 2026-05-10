@@ -693,6 +693,9 @@ pub fn classify_model_load_error(error: &str) -> &'static str {
         || lower.contains("unrecognized")
         || lower.contains("bad magic")
         || lower.contains("null result")
+        || lower.contains("no module named")
+        || lower.contains("mlx python runtime")
+        || lower.contains("apple silicon")
     {
         return "model_invalid";
     }

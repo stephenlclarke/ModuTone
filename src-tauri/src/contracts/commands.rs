@@ -224,6 +224,7 @@ pub struct TagDeleteResponse {
 pub struct ModelEntry {
     pub id: String,
     pub display_name: String,
+    pub backend: String,
     pub size_bytes: u64,
     pub ram_class_label: String,
     pub min_ram_bytes: u64,

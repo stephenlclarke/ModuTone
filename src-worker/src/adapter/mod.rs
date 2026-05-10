@@ -7,6 +7,7 @@
 // only the heavy model object is shared.
 
 pub mod llama_cpp;
+pub mod mlx;
 
 use crate::cancellation::CancellationToken;
 use crate::protocol::PromptPackage;

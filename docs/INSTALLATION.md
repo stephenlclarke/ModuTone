@@ -65,3 +65,8 @@ source to produce local packages:
 - Linux: AppImage and deb
 
 See [Build from Source](BUILD_FROM_SOURCE.md) for platform build steps.
+
+On Apple Silicon, ModuTone can also use the optional MLX backend for
+`manjunathshiva/gpt-oss-20b-tq3`. See
+[Apple Silicon MLX Setup](APPLE_SILICON.md) for tool installation, model
+download, and GUI launch setup.
