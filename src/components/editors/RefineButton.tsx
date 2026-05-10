@@ -22,6 +22,19 @@ export function RefineButton({ tabId }: { tabId: string }) {
   const refinementInstruction = activeTab?.refinementInstruction ?? "";
   const acceptedOutputVersion = activeTab?.acceptedOutputVersion ?? 0;
   const inputVersionToken = activeTab?.inputVersionToken ?? "";
+  const workerState = useAppStore((state) => state.runtime.workerState);
+  const loadedModelId = useAppStore((state) => state.runtime.loadedModelId);
+  const selectedModelId = useAppStore(
+    (state) => state.metadata.settings?.selectedModelId ?? null,
+  );
+  const loadingPhase = useAppStore((state) => state.modelLoading.phase);
+  const isFallbackActive = loadingPhase === "fallback_active";
+  const activeGenerationModelId =
+    loadedModelId && (loadedModelId === selectedModelId || isFallbackActive)
+      ? loadedModelId
+      : null;
+  const modelReady =
+    workerState === "idle" && activeGenerationModelId !== null;
 
   const activeTagIds = useMemo(
     () => activeTab?.activeTagIds ?? [],
@@ -32,7 +45,13 @@ export function RefineButton({ tabId }: { tabId: string }) {
   let enabled = false;
   let tooltip: string | undefined;
 
-  if (status === "output_ready" && refinementInstruction.trim().length === 0) {
+  if (!modelReady) {
+    enabled = false;
+    tooltip = "Model not ready";
+  } else if (
+    status === "output_ready" &&
+    refinementInstruction.trim().length === 0
+  ) {
     enabled = false;
     tooltip = "Enter a refinement instruction";
   } else if (
@@ -46,13 +65,13 @@ export function RefineButton({ tabId }: { tabId: string }) {
   }
 
   const handleClick = useCallback(async () => {
-    if (!enabled || acceptedOutput === null) return;
+    if (!enabled || acceptedOutput === null || !activeGenerationModelId) return;
 
     try {
       await generationStartRefinement({
         contractVersion: 1,
         tabId,
-        modelId: "default",
+        modelId: activeGenerationModelId,
         profileId: selectedProfileId,
         activeTagIds,
         acceptedOutput,
@@ -66,6 +85,7 @@ export function RefineButton({ tabId }: { tabId: string }) {
   }, [
     enabled,
     tabId,
+    activeGenerationModelId,
     selectedProfileId,
     activeTagIds,
     acceptedOutput,
