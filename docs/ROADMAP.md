@@ -1,7 +1,7 @@
 # Roadmap
 
-ModuTone v1.0.0 is feature-complete for its initial scope: local, private
-writing refinement with bundled models.
+ModuTone v1.1.0 is feature-complete for its initial scope: local, private
+writing refinement with in-app model downloads.
 
 The items below are possible future work, not commitments.
 

@@ -4,6 +4,10 @@ All notable changes to ModuTone are documented in this file.
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [1.1.0] - 2026-05-10
+
 ### Fixed
 
 - Resolve bundled model discovery through Tauri's resource directory instead of
@@ -27,6 +31,8 @@ All notable changes to ModuTone are documented in this file.
 - Document current Windows, macOS, and Linux build status.
 - Update installer filenames, model packaging requirements, and test counts.
 - Add Rust workspace tests to each OS leg of the CI build matrix.
+- Add app-only Apple Silicon DMG deployment through GitHub Actions releases.
+- Document app-only install packages and in-app model downloads.
 
 ## [1.0.0] - 2025-05-08
 

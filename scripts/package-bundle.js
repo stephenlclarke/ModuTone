@@ -1,7 +1,7 @@
 // Assemble the ModuTone distribution bundle.
 //
 // Creates a distribution folder containing:
-//   ModuTone_1.0.0_x64-setup.exe  — NSIS installer (app + worker + catalog)
+//   ModuTone_1.1.0_x64-setup.exe  — NSIS installer (app + worker + catalog)
 //   models/                       — GGUF model files copied at install time
 //
 // The NSIS installer's POSTINSTALL hook copies models/*.gguf from the

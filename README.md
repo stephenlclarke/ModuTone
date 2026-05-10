@@ -10,6 +10,21 @@ Built with [Tauri 2](https://tauri.app/), React, TypeScript, Rust,
 [llama.cpp](https://github.com/ggerganov/llama.cpp), and optional
 [MLX](https://github.com/ml-explore/mlx) support on Apple Silicon.
 
+## TL;DR
+
+1. Install the app package for your OS. Tester DMGs are app-only and do not
+   include model weights.
+2. Open ModuTone Settings.
+3. Download a model from Settings.
+4. On Apple Silicon, install Python first if you want GPT-OSS TQ3:
+
+   ```bash
+   brew install python@3.14
+   ```
+
+5. In Settings, install the MLX runtime, download
+   `GPT-OSS 20B TurboQuant 3-bit`, then select the model.
+
 ## What It Does
 
 ModuTone helps you improve writing with local AI models. You provide text,
@@ -96,20 +111,16 @@ See [Architecture](docs/ARCHITECTURE.md) for the full technical breakdown.
 
 ## Installation
 
-Windows release packages use a two-file installer payload:
+Tester release packages install the app only and do not include model weights.
 
-1. Download `ModuTone_1.0.0_x64-setup.exe`.
-2. Download `ModuTone_1.0.0_x64-setup.7z`.
-3. Place both files in the same folder.
-4. Run `ModuTone_1.0.0_x64-setup.exe`.
+1. Install the package for your OS: Windows installer, macOS DMG, Linux deb, or
+   Linux AppImage.
+2. Open ModuTone.
+3. Download a model from Settings.
+4. Select the downloaded model.
 
-The launcher extracts the payload, runs the NSIS installer, and copies bundled
-models into the application install directory.
-
-Models can also be downloaded from Settings after installation.
-
-macOS and Linux packages can be built from source. See
-[Installation](docs/INSTALLATION.md) for platform details.
+See [Installation](docs/INSTALLATION.md) for platform commands, including
+unsigned macOS tester-build launch steps.
 
 ## System Requirements
 

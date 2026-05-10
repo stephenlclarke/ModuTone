@@ -187,7 +187,29 @@ This command:
 4. Bundles the platform artifact.
 
 Default build artifacts do not include large GGUF model weights. They can
-launch, but inference requires user-provided or bundled model files.
+launch, but inference requires downloaded or user-provided model files.
+
+## GitHub DMG Release
+
+The GitHub release workflow builds and deploys the Apple Silicon DMG without
+bundled model weights. It runs on `macos-15`, uses Tauri's ad-hoc signing
+identity, uploads the DMG and SHA-256 checksum as workflow artifacts, and
+attaches both files to the GitHub Release.
+
+Create and push a release tag that matches `package.json`:
+
+```bash
+version="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
+git tag "v${version}"
+git push origin "v${version}"
+```
+
+The tag push runs `.github/workflows/release.yml`. To rerun deployment for an
+existing tag, open the Release workflow in GitHub Actions, choose **Run
+workflow**, and enter the existing tag such as `v1.1.0`.
+
+The workflow publishes an app-only DMG. Users download model files from
+Settings after installation.
 
 ## Clean macOS Install
 
@@ -210,7 +232,7 @@ rm -rf /tmp/modutone-dmg
 mkdir -p /tmp/modutone-dmg
 hdiutil attach -nobrowse -readonly \
   -mountpoint /tmp/modutone-dmg \
-  target/release/bundle/dmg/ModuTone_1.0.0_aarch64.dmg
+  target/release/bundle/dmg/ModuTone_1.1.0_aarch64.dmg
 ditto /tmp/modutone-dmg/ModuTone.app /Applications/ModuTone.app
 hdiutil detach /tmp/modutone-dmg
 
@@ -232,7 +254,7 @@ bundler. Install from the generated DMG instead.
 On Apple Silicon, the generated DMG is:
 
 ```text
-target/release/bundle/dmg/ModuTone_1.0.0_aarch64.dmg
+target/release/bundle/dmg/ModuTone_1.1.0_aarch64.dmg
 ```
 
 On Intel macOS, expect the architecture suffix to differ.

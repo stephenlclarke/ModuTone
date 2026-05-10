@@ -1,6 +1,6 @@
 # Windows Release
 
-ModuTone v1.0.0 targets Windows 11 x64 as the primary verified platform.
+ModuTone v1.1.0 targets Windows 11 x64 as the primary verified platform.
 
 ## Platform Status
 
@@ -23,8 +23,8 @@ ModuTone v1.0.0 targets Windows 11 x64 as the primary verified platform.
 The current model payload exceeds the Windows PE single-file size limit, so the
 release uses an external payload pair:
 
-- `ModuTone_1.0.0_x64-setup.exe`
-- `ModuTone_1.0.0_x64-setup.7z`
+- `ModuTone_1.1.0_x64-setup.exe`
+- `ModuTone_1.1.0_x64-setup.7z`
 
 Both files must stay in the same folder. The user runs the `.exe`.
 

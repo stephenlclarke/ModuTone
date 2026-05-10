@@ -322,7 +322,7 @@ rm -rf /tmp/modutone-dmg
 mkdir -p /tmp/modutone-dmg
 hdiutil attach -nobrowse -readonly \
   -mountpoint /tmp/modutone-dmg \
-  target/release/bundle/dmg/ModuTone_1.0.0_aarch64.dmg
+  target/release/bundle/dmg/ModuTone_1.1.0_aarch64.dmg
 ditto /tmp/modutone-dmg/ModuTone.app /Applications/ModuTone.app
 hdiutil detach /tmp/modutone-dmg
 ```

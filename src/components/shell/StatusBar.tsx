@@ -59,7 +59,7 @@ export function StatusBar() {
       {storeLabel && (
         <span className="status-segment status-segment-warn">{storeLabel}</span>
       )}
-      <span className="status-segment status-segment-version">v1.0.0</span>
+      <span className="status-segment status-segment-version">v1.1.0</span>
     </div>
   );
 }
