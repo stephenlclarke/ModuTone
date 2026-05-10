@@ -7,11 +7,14 @@ Windows, macOS, and Linux.
 
 | Tool | Version | Purpose |
 | --- | --- | --- |
+| Git | Current stable | Source checkout |
 | Node.js | 20 or newer | Frontend build and scripts |
 | npm | Bundled with Node | Package management |
 | Rust | stable | Backend and worker builds |
 | Clippy | Rust component | Rust linting |
 | rustfmt | Rust component | Rust formatting |
+| Tauri system dependencies | Platform-specific | Native app and WebView build |
+| Python | 3.12 on Apple Silicon | Optional MLX model runtime |
 
 CI currently uses Node.js 24. A clean macOS build was verified with Node.js
 20.20.2, npm 10.8.2, and Rust 1.95 on Apple Silicon.
@@ -23,22 +26,20 @@ instead of requiring a global Tauri install.
 
 ### macOS
 
-Install Xcode Command Line Tools:
+Install Xcode Command Line Tools, Homebrew, Node.js, Python, and Rust:
 
 ```bash
 xcode-select --install
-```
 
-Verify they are available:
+# Install Homebrew if needed.
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+eval "$(/opt/homebrew/bin/brew shellenv)"
 
-```bash
-xcode-select -p
-```
+brew install git node python@3.12
 
-Install Rust with `rustup` or another stable toolchain provider, then ensure
-Clippy and rustfmt are available:
-
-```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+. "$HOME/.cargo/env"
+rustup default stable
 rustup component add clippy rustfmt
 ```
 
@@ -53,19 +54,81 @@ On Debian or Ubuntu based systems, install Tauri's WebKit dependencies:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev
-sudo apt-get install -y librsvg2-dev patchelf
+sudo apt-get install -y \
+  build-essential \
+  curl \
+  file \
+  git \
+  libayatana-appindicator3-dev \
+  libssl-dev \
+  libwebkit2gtk-4.1-dev \
+  libxdo-dev \
+  librsvg2-dev \
+  patchelf \
+  wget
+```
+
+Install Node.js 20 or newer and Rust stable:
+
+```bash
+# Example using NodeSource for Node.js 24, matching CI.
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+. "$HOME/.cargo/env"
+rustup default stable
+rustup component add clippy rustfmt
 ```
 
 ### Windows
 
 Install:
 
+- Git for Windows.
 - Node.js 20 or newer.
 - Rust stable with the MSVC toolchain.
-- Microsoft C++ Build Tools or Visual Studio with C++ desktop tools.
-- WebView2 Runtime.
+- Microsoft C++ Build Tools or Visual Studio with `Desktop development with
+  C++`.
+- WebView2 Runtime. Windows 10 version 1803 and later, including Windows 11,
+  normally include it already.
 - 7-Zip if you need to create Windows SFX release packages.
+
+Example `winget` setup:
+
+```powershell
+winget install --id Git.Git -e
+winget install --id OpenJS.NodeJS.LTS -e
+winget install --id Rustlang.Rustup -e
+winget install --id Microsoft.VisualStudio.2022.BuildTools -e
+winget install --id Microsoft.EdgeWebView2Runtime -e
+winget install --id 7zip.7zip -e
+
+rustup default stable
+rustup component add clippy rustfmt
+```
+
+After installing Windows build tools, open a new Developer PowerShell or a new
+terminal so the MSVC environment is available.
+
+## Verify Dependencies
+
+Run these commands before `npm ci`:
+
+```bash
+git --version
+node --version
+npm --version
+rustc --version
+cargo --version
+cargo clippy --version
+```
+
+On macOS Apple Silicon, also verify Python if you plan to use GPT-OSS TQ3:
+
+```bash
+/opt/homebrew/bin/python3.12 --version
+```
 
 ## Clone and Install
 

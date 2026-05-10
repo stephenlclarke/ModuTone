@@ -64,6 +64,13 @@ export function Banner() {
           "Selected model file appears incomplete or corrupt. Choose a different model in Settings.",
         style: "warning",
       });
+    } else if (lastErrorClassification === "runtime_missing") {
+      banners.push({
+        key: "runtime-missing",
+        message:
+          "The selected MLX model needs Python with mlx-lm and turboquant-mlx-full installed.",
+        style: "warning",
+      });
     } else if (lastErrorClassification === "insufficient_memory") {
       banners.push({
         key: "model-memory",

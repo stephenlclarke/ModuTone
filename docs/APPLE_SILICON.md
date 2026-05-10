@@ -32,7 +32,7 @@ GPT-OSS 20B TurboQuant 3-bit
 | npm | Project package installation |
 | Rust stable | Tauri backend and worker sidecar |
 | Clippy and rustfmt | Rust linting and formatting |
-| Python 3.12 | MLX package runtime |
+| Python 3.12 | Required runtime for MLX model loading |
 | `mlx-lm` | MLX model loading and generation |
 | `turboquant-mlx-full` | TurboQuant support for the TQ3 model |
 | `huggingface_hub` with `hf_xet` | Hugging Face `hf` download support |
@@ -107,7 +107,7 @@ Build the debug worker once so the sidecar is available for development:
 npm run build:sidecar:dev
 ```
 
-## Create the MLX Environment
+## Create the Source-Tree MLX Environment
 
 From the repository root:
 
@@ -137,6 +137,52 @@ repository root. For other layouts, set:
 
 ```bash
 export MODUTONE_MLX_PYTHON="$PWD/.venv-mlx/bin/python"
+```
+
+## Create the Installed-App MLX Environment
+
+The installed macOS app also needs Python for MLX models. GUI apps launched
+from Finder or Spotlight do not inherit shell exports, so the default installed
+runtime location is inside ModuTone's app data directory:
+
+```text
+~/Library/Application Support/com.modutone.desktop/mlx/.venv/bin/python
+```
+
+Create and verify that environment with:
+
+```bash
+APP_MLX_VENV="$HOME/Library/Application Support/com.modutone.desktop/mlx/.venv"
+mkdir -p "$(dirname "$APP_MLX_VENV")"
+
+/opt/homebrew/bin/python3.12 -m venv "$APP_MLX_VENV"
+"$APP_MLX_VENV/bin/python" -m pip install --upgrade pip setuptools wheel
+"$APP_MLX_VENV/bin/python" -m pip install \
+  "huggingface_hub[hf_xet]" \
+  "mlx-lm>=0.31.3" \
+  "turboquant-mlx-full>=0.2.0"
+
+"$APP_MLX_VENV/bin/python" - <<'PY'
+import huggingface_hub
+import mlx_lm
+import turboquant_mlx.generate
+
+print("mlx-lm", mlx_lm.__version__)
+print("huggingface_hub", huggingface_hub.__version__)
+print("turboquant_mlx.generate ok")
+PY
+```
+
+`MODUTONE_MLX_PYTHON` remains supported as an override:
+
+```bash
+launchctl setenv MODUTONE_MLX_PYTHON "$APP_MLX_VENV/bin/python"
+```
+
+Clear the override with:
+
+```bash
+launchctl unsetenv MODUTONE_MLX_PYTHON
 ```
 
 ## Download GPT-OSS 20B TQ3
@@ -227,8 +273,9 @@ hdiutil detach /tmp/modutone-dmg
 
 ## Use with an Installed macOS App
 
-For a local app installed in `/Applications`, use Settings to download the
-model or put the model directory under the app data models directory:
+For a local app installed in `/Applications`, first create the installed-app
+MLX environment above. Then use Settings to download the model or put the model
+directory under the app data models directory:
 
 ```bash
 mkdir -p "$HOME/Library/Application Support/com.modutone.desktop/models"
@@ -238,17 +285,10 @@ mkdir -p "$HOME/Library/Application Support/com.modutone.desktop/models"
   --local-dir "$HOME/Library/Application Support/com.modutone.desktop/models/gpt-oss-20b-tq3"
 ```
 
-Make the MLX Python runtime visible to GUI launches:
+Launch the installed app:
 
 ```bash
-launchctl setenv MODUTONE_MLX_PYTHON "$PWD/.venv-mlx/bin/python"
 open -n /Applications/ModuTone.app
-```
-
-To clear the GUI environment variable:
-
-```bash
-launchctl unsetenv MODUTONE_MLX_PYTHON
 ```
 
 ## Troubleshooting
@@ -259,8 +299,8 @@ If the model does not appear, confirm the model directory contains
 If model loading fails with a Python runtime error, confirm:
 
 ```bash
-echo "$MODUTONE_MLX_PYTHON"
-"$MODUTONE_MLX_PYTHON" -c "import mlx_lm"
+APP_MLX_VENV="$HOME/Library/Application Support/com.modutone.desktop/mlx/.venv"
+"$APP_MLX_VENV/bin/python" -c "import mlx_lm; import turboquant_mlx.generate"
 ```
 
 If the app reports insufficient memory, close other memory-heavy applications

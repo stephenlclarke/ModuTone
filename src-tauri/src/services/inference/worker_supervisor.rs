@@ -677,10 +677,21 @@ async fn worker_stderr_reader(stderr: tokio::process::ChildStderr) {
 
 /// Classify a model-load error string into one of three categories:
 /// - `"model_invalid"`: file not found, corrupt, unsupported format
+/// - `"runtime_missing"`: required backend runtime or Python package missing
 /// - `"insufficient_memory"`: out of memory, allocation failure
 /// - `"transient"`: everything else (retry-eligible)
 pub fn classify_model_load_error(error: &str) -> &'static str {
     let lower = error.to_lowercase();
+
+    // Runtime setup issues — non-retryable until the user installs/configures
+    // the required backend runtime.
+    if lower.contains("mlx python runtime")
+        || lower.contains("no module named")
+        || lower.contains("install mlx-lm")
+        || lower.contains("turboquant_mlx")
+    {
+        return "runtime_missing";
+    }
 
     // Model file issues — non-retryable
     if lower.contains("not found")
@@ -693,8 +704,6 @@ pub fn classify_model_load_error(error: &str) -> &'static str {
         || lower.contains("unrecognized")
         || lower.contains("bad magic")
         || lower.contains("null result")
-        || lower.contains("no module named")
-        || lower.contains("mlx python runtime")
         || lower.contains("apple silicon")
     {
         return "model_invalid";
@@ -925,6 +934,22 @@ mod tests {
                 "Failed to load model from '/path/model.gguf': null result from llama cpp"
             ),
             "model_invalid"
+        );
+    }
+
+    #[test]
+    fn classify_model_load_error_runtime_missing() {
+        assert_eq!(
+            classify_model_load_error("MLX Python runtime not found"),
+            "runtime_missing"
+        );
+        assert_eq!(
+            classify_model_load_error("No module named 'turboquant_mlx'"),
+            "runtime_missing"
+        );
+        assert_eq!(
+            classify_model_load_error("Install mlx-lm and turboquant-mlx-full"),
+            "runtime_missing"
         );
     }
 

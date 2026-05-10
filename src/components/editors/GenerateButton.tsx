@@ -163,6 +163,8 @@ function GenerateActionButton({
     label = "No Model Available";
     if (failClass === "model_invalid") {
       tooltip = "Model file incomplete or corrupt";
+    } else if (failClass === "runtime_missing") {
+      tooltip = "Install the MLX Python runtime for this model";
     } else if (failClass === "insufficient_memory") {
       tooltip = "Not enough memory for this model";
     } else {

@@ -196,6 +196,10 @@ export const createModelLoadingSlice: StateCreator<
           errorMessage =
             "Model file appears incomplete or corrupt and cannot be loaded";
           break;
+        case "runtime_missing":
+          errorMessage =
+            "Required model runtime is missing or not visible to ModuTone";
+          break;
         case "insufficient_memory":
           errorMessage = "Not enough system memory to load this model";
           break;

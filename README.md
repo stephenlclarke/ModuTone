@@ -112,6 +112,7 @@ macOS and Linux packages can be built from source. See
 | OS | Windows 11 x64, macOS, or Linux |
 | RAM | 8 GB for 3B model, 16 GB for MLX TQ3, 24 GB for 14B model |
 | Disk | Varies by downloaded model, from about 2.5 GB to 10.5 GB |
+| Apple Silicon MLX runtime | Python 3.12, `mlx-lm`, `turboquant-mlx-full` |
 
 ModuTone detects available RAM and labels models as recommended, caution, or
 unsupported for the current system.
@@ -123,6 +124,7 @@ Prerequisites:
 - Node.js 20 or newer
 - Rust stable
 - Platform dependencies required by Tauri
+- Python 3.12 with MLX packages for Apple Silicon GPT-OSS TQ3
 
 ```bash
 npm ci
@@ -138,13 +140,13 @@ commands. On Apple Silicon, see
 
 ## Testing
 
-Current local validation covers 424 test cases:
+Current local validation covers 427 test cases:
 
 ```bash
-# Frontend, contract, and TypeScript tests: 242 tests
+# Frontend, contract, and TypeScript tests: 243 tests
 npm run test
 
-# Rust backend and worker tests: 181 tests
+# Rust backend and worker tests: 183 tests
 npm run test:rust
 
 # Playwright smoke test: 1 test

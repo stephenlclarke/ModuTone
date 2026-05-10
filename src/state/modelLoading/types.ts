@@ -3,6 +3,7 @@
 export type ModelLoadErrorClass =
   | "transient"
   | "model_invalid"
+  | "runtime_missing"
   | "insufficient_memory";
 
 export type ModelLoadingPhase =

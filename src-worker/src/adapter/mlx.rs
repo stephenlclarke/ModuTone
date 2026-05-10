@@ -315,18 +315,7 @@ fn read_bridge_message(stdout: &mut BufReader<ChildStdout>) -> Result<BridgeMess
 }
 
 fn resolve_python() -> Result<PathBuf, String> {
-    let mut candidates = Vec::new();
-
-    if let Ok(path) = std::env::var("MODUTONE_MLX_PYTHON") {
-        candidates.push(PathBuf::from(path));
-    }
-
-    if let Ok(current_dir) = std::env::current_dir() {
-        candidates.push(current_dir.join(".venv-mlx").join("bin").join("python"));
-    }
-
-    candidates.push(PathBuf::from("python3"));
-    candidates.push(PathBuf::from("python"));
+    let candidates = python_candidates();
 
     for candidate in candidates {
         if candidate.components().count() > 1 && !candidate.exists() {
@@ -349,10 +338,106 @@ fn resolve_python() -> Result<PathBuf, String> {
     }
 
     Err(
-        "MLX Python runtime not found. Install mlx-lm and turboquant-mlx-full, \
-         or set MODUTONE_MLX_PYTHON to the Python executable in that environment."
+        "MLX Python runtime not found. Install mlx-lm and turboquant-mlx-full \
+         in the ModuTone app data MLX environment, or set MODUTONE_MLX_PYTHON \
+         to the Python executable in that environment."
             .to_string(),
     )
+}
+
+fn python_candidates() -> Vec<PathBuf> {
+    let env_python = std::env::var_os("MODUTONE_MLX_PYTHON").map(PathBuf::from);
+    let env_home = std::env::var_os("MODUTONE_MLX_HOME").map(PathBuf::from);
+    let user_home = std::env::var_os("HOME").map(PathBuf::from);
+    let current_dir = std::env::current_dir().ok();
+    let resource_dir = std::env::current_exe().ok().and_then(|path| {
+        path.parent()
+            .and_then(Path::parent)
+            .map(|p| p.join("Resources"))
+    });
+
+    python_candidates_from(env_python, env_home, user_home, current_dir, resource_dir)
+}
+
+fn push_unique(candidates: &mut Vec<PathBuf>, candidate: PathBuf) {
+    if !candidates.contains(&candidate) {
+        candidates.push(candidate);
+    }
+}
+
+fn python_candidates_from(
+    env_python: Option<PathBuf>,
+    env_home: Option<PathBuf>,
+    user_home: Option<PathBuf>,
+    current_dir: Option<PathBuf>,
+    resource_dir: Option<PathBuf>,
+) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+
+    if let Some(path) = env_python {
+        push_unique(&mut candidates, path);
+    }
+
+    if let Some(path) = env_home {
+        push_unique(&mut candidates, path.join("bin").join("python"));
+        push_unique(
+            &mut candidates,
+            path.join(".venv").join("bin").join("python"),
+        );
+    }
+
+    if let Some(resources) = resource_dir {
+        push_unique(
+            &mut candidates,
+            resources
+                .join("mlx")
+                .join(".venv")
+                .join("bin")
+                .join("python"),
+        );
+    }
+
+    if let Some(home) = user_home {
+        push_unique(
+            &mut candidates,
+            home.join("Library")
+                .join("Application Support")
+                .join("com.modutone.desktop")
+                .join("mlx")
+                .join(".venv")
+                .join("bin")
+                .join("python"),
+        );
+        push_unique(
+            &mut candidates,
+            home.join("Library")
+                .join("Application Support")
+                .join("com.modutone.desktop")
+                .join(".venv-mlx")
+                .join("bin")
+                .join("python"),
+        );
+        push_unique(
+            &mut candidates,
+            home.join(".modutone")
+                .join("mlx")
+                .join(".venv")
+                .join("bin")
+                .join("python"),
+        );
+    }
+
+    if let Some(dir) = current_dir {
+        push_unique(
+            &mut candidates,
+            dir.join(".venv-mlx").join("bin").join("python"),
+        );
+    }
+
+    push_unique(&mut candidates, PathBuf::from("python3"));
+    push_unique(&mut candidates, PathBuf::from("python"));
+
+    candidates
 }
 
 #[cfg(test)]
@@ -375,5 +460,27 @@ mod tests {
             }
             other => panic!("unexpected message: {:?}", other),
         }
+    }
+
+    #[test]
+    fn python_candidates_include_gui_visible_app_data_runtime() {
+        let candidates = python_candidates_from(
+            Some(PathBuf::from("/custom/python")),
+            Some(PathBuf::from("/custom/mlx")),
+            Some(PathBuf::from("/Users/tester")),
+            Some(PathBuf::from("/repo")),
+            Some(PathBuf::from(
+                "/Applications/ModuTone.app/Contents/Resources",
+            )),
+        );
+
+        assert_eq!(candidates[0], PathBuf::from("/custom/python"));
+        assert!(candidates.contains(&PathBuf::from(
+            "/Users/tester/Library/Application Support/com.modutone.desktop/mlx/.venv/bin/python"
+        )));
+        assert!(candidates.contains(&PathBuf::from(
+            "/Applications/ModuTone.app/Contents/Resources/mlx/.venv/bin/python"
+        )));
+        assert!(candidates.contains(&PathBuf::from("/repo/.venv-mlx/bin/python")));
     }
 }
