@@ -79,8 +79,8 @@ export function RefineButton({ tabId }: { tabId: string }) {
         refinementInstruction,
         inputVersionToken,
       });
-    } catch {
-      // Error will be surfaced via generation:failed event
+    } catch (err) {
+      useAppStore.getState().handleGenerationCommandFailed(tabId, err);
     }
   }, [
     enabled,

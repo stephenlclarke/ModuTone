@@ -297,7 +297,15 @@ export function AppShell() {
 
     const settings = state.metadata.settings;
     const loadedModelId = state.runtime.loadedModelId;
-    if (!loadedModelId) return;
+    if (!loadedModelId) {
+      confirmReGenerate();
+      useAppStore.getState().handleGenerationCommandFailed(tabId, {
+        code: "MODEL_NOT_READY",
+        message: "No model is loaded. Select and warm a model before generating.",
+        subsystem: "inference",
+      });
+      return;
+    }
 
     const selectedProfileId =
       settings?.lastSelectedProfileId ??
@@ -316,8 +324,8 @@ export function AppShell() {
         sourceText: tab.inputText,
         inputVersionToken: tab.inputVersionToken,
       });
-    } catch {
-      // Error will be surfaced via generation:failed event
+    } catch (err) {
+      useAppStore.getState().handleGenerationCommandFailed(tabId, err);
     }
   }, [confirmReGenerate]);
 
