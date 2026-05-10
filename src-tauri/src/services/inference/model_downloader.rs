@@ -356,6 +356,13 @@ async fn download_model_files(
             ),
         })?;
 
+    read_user_catalog_entries(&user_models_dir.join("model_catalog.json"))
+        .await
+        .map_err(|error| DownloadFailure::Failed {
+            downloaded: 0,
+            error,
+        })?;
+
     let client = reqwest::Client::builder()
         .user_agent("ModuTone/1.0 model downloader")
         .build()
@@ -663,14 +670,7 @@ async fn write_user_catalog_entry(
     spec: &DownloadSpec,
 ) -> Result<(), String> {
     let catalog_path = user_models_dir.join("model_catalog.json");
-    let mut entries = if catalog_path.is_file() {
-        let json = tokio::fs::read_to_string(&catalog_path)
-            .await
-            .map_err(|e| format!("Failed to read {}: {}", catalog_path.display(), e))?;
-        serde_json::from_str::<Vec<CatalogEntry>>(&json).unwrap_or_default()
-    } else {
-        Vec::new()
-    };
+    let mut entries = read_user_catalog_entries(&catalog_path).await?;
 
     let new_entry = spec.catalog_entry();
     if let Some(existing) = entries
@@ -693,6 +693,23 @@ async fn write_user_catalog_entry(
         .map_err(|e| format!("Failed to install {}: {}", catalog_path.display(), e))?;
 
     Ok(())
+}
+
+async fn read_user_catalog_entries(catalog_path: &Path) -> Result<Vec<CatalogEntry>, String> {
+    if !catalog_path.is_file() {
+        return Ok(Vec::new());
+    }
+
+    let json = tokio::fs::read_to_string(catalog_path)
+        .await
+        .map_err(|e| format!("Failed to read {}: {}", catalog_path.display(), e))?;
+    serde_json::from_str::<Vec<CatalogEntry>>(&json).map_err(|e| {
+        format!(
+            "Model catalog {} is invalid JSON: {}",
+            catalog_path.display(),
+            e
+        )
+    })
 }
 
 fn emit_progress(
@@ -751,6 +768,26 @@ mod tests {
         assert_eq!(
             safe_join(root, "model/file.gguf").unwrap(),
             Path::new("/tmp/models/model/file.gguf")
+        );
+    }
+
+    #[tokio::test]
+    async fn user_catalog_parse_error_does_not_overwrite_catalog() {
+        let tmp = tempfile::tempdir().unwrap();
+        let catalog_path = tmp.path().join("model_catalog.json");
+        tokio::fs::write(&catalog_path, "{invalid json")
+            .await
+            .unwrap();
+
+        let spec = download_spec_for_model("qwen2.5-3b-instruct").unwrap();
+        let err = write_user_catalog_entry(tmp.path(), &spec)
+            .await
+            .unwrap_err();
+
+        assert!(err.contains("invalid JSON"));
+        assert_eq!(
+            tokio::fs::read_to_string(&catalog_path).await.unwrap(),
+            "{invalid json"
         );
     }
 }
