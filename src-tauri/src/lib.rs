@@ -37,8 +37,19 @@ pub fn run() {
                 .map_err(|e| format!("Failed to initialize metadata store: {}", e))?;
             app.manage(store);
 
+            let resource_dir = match app.path().resource_dir() {
+                Ok(path) => Some(path),
+                Err(e) => {
+                    log::warn!(
+                        "Resource directory resolution failed: {}. Bundled models may be unavailable.",
+                        e
+                    );
+                    None
+                }
+            };
+
             // Initialize model registry (discovers available GGUF models)
-            let model_registry = ModelRegistry::init(&data_dir);
+            let model_registry = ModelRegistry::init(&data_dir, resource_dir.as_deref());
             app.manage(model_registry);
 
             // Initialize worker supervisor and job coordinator
