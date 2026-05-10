@@ -6,6 +6,7 @@ import type {
   CustomTagEntry,
   ModelEntry,
   ModelDownloadProgressEvent,
+  MlxRuntimeInstallProgressEvent,
   MotionPreference,
   ProfileEntry,
   ThemePreference,
@@ -17,6 +18,19 @@ export interface ModelDownloadState {
   bytesDownloaded: number;
   totalBytes: number;
   fileName: string | null;
+  error: string | null;
+}
+
+export interface MlxRuntimeState {
+  supported: boolean;
+  installed: boolean;
+  installing: boolean;
+  installDir: string | null;
+  pythonPath: string | null;
+  unavailableReason: string | null;
+  status: MlxRuntimeInstallProgressEvent["status"] | "idle";
+  step: string | null;
+  detail: string | null;
   error: string | null;
 }
 
@@ -39,6 +53,7 @@ export interface MetadataState {
   customTags: CustomTagEntry[];
   models: ModelEntry[];
   modelDownloads: Record<string, ModelDownloadState>;
+  mlxRuntime: MlxRuntimeState | null;
   systemRamBytes: number | null;
   loadStatus: "idle" | "loading" | "loaded" | "error";
 }

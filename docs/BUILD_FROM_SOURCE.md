@@ -14,7 +14,7 @@ Windows, macOS, and Linux.
 | Clippy | Rust component | Rust linting |
 | rustfmt | Rust component | Rust formatting |
 | Tauri system dependencies | Platform-specific | Native app and WebView build |
-| Python | 3.12 on Apple Silicon | Optional MLX model runtime |
+| Python | 3.14 preferred on Apple Silicon | Optional MLX runtime bootstrap |
 
 CI currently uses Node.js 24. A clean macOS build was verified with Node.js
 20.20.2, npm 10.8.2, and Rust 1.95 on Apple Silicon.
@@ -35,7 +35,7 @@ xcode-select --install
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 eval "$(/opt/homebrew/bin/brew shellenv)"
 
-brew install git node python@3.12
+brew install git node python@3.14
 
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 . "$HOME/.cargo/env"
@@ -46,7 +46,8 @@ rustup component add clippy rustfmt
 Apple Silicon Macs can also run the optional MLX backend for
 `manjunathshiva/gpt-oss-20b-tq3`. See
 [Apple Silicon MLX Setup](APPLE_SILICON.md) for the Python, MLX, Hugging Face,
-and model download steps.
+and model download steps. Installed app users can let Settings create the
+private MLX runtime after Python 3.14 is available.
 
 ### Linux
 
@@ -127,7 +128,7 @@ cargo clippy --version
 On macOS Apple Silicon, also verify Python if you plan to use GPT-OSS TQ3:
 
 ```bash
-/opt/homebrew/bin/python3.12 --version
+/opt/homebrew/bin/python3.14 --version
 ```
 
 ## Clone and Install
@@ -263,7 +264,9 @@ directory. For source-tree packaging, download the matching Q5_K_M GGUF
 variants from the upstream Qwen model pages on Hugging Face. On Apple Silicon,
 download
 `manjunathshiva/gpt-oss-20b-tq3` as an MLX model directory by following
-[Apple Silicon MLX Setup](APPLE_SILICON.md).
+[Apple Silicon MLX Setup](APPLE_SILICON.md). The installed macOS app can also
+create its private MLX runtime from Settings, so user installs do not need a
+source-tree `.venv-mlx` unless you are building or packaging from source.
 
 The catalog checks GGUF filenames or shard sets and rejects truncated GGUF
 downloads that are below the install-size threshold. MLX model directories must

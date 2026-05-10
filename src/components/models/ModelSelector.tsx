@@ -19,8 +19,10 @@ export function ModelSelector() {
   const setModelAlias = useAppStore((state) => state.setModelAlias);
   const clearModelAlias = useAppStore((state) => state.clearModelAlias);
   const modelDownloads = useAppStore((state) => state.metadata.modelDownloads);
+  const mlxRuntime = useAppStore((state) => state.metadata.mlxRuntime);
   const startModelDownload = useAppStore((state) => state.startModelDownload);
   const cancelModelDownload = useAppStore((state) => state.cancelModelDownload);
+  const installMlxRuntime = useAppStore((state) => state.installMlxRuntime);
 
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
@@ -30,6 +32,7 @@ export function ModelSelector() {
   const downloadableModels = models.filter(
     (m) => m.isCataloged && !m.isInstalled,
   );
+  const hasMlxModel = models.some((model) => model.backend === "mlx");
   const anyInstalled = installedModels.length > 0;
 
   const handleChange = useCallback(
@@ -175,6 +178,47 @@ export function ModelSelector() {
     );
   }
 
+  function renderMlxRuntimeSetup() {
+    if (!hasMlxModel || !mlxRuntime || mlxRuntime.installed) return null;
+
+    const isInstalling =
+      mlxRuntime.installing ||
+      mlxRuntime.status === "queued" ||
+      mlxRuntime.status === "installing";
+    const detail =
+      mlxRuntime.detail ??
+      (isInstalling
+        ? "Installing Python runtime"
+        : "Required before GPT-OSS MLX can load");
+    const error = mlxRuntime.error ?? mlxRuntime.unavailableReason;
+
+    return (
+      <div className="model-download-list">
+        <div className="model-download-item">
+          <div className="model-download-main">
+            <span className="model-download-name">
+              Apple Silicon MLX runtime
+            </span>
+            <span className="model-download-meta">{detail}</span>
+            {error && <span className="model-download-error">{error}</span>}
+          </div>
+          <button
+            className="model-download-btn"
+            type="button"
+            disabled={isInstalling || !mlxRuntime.supported}
+            onClick={() => void installMlxRuntime()}
+          >
+            {isInstalling
+              ? "Installing"
+              : mlxRuntime.supported
+                ? "Install Runtime"
+                : "Unavailable"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (models.length === 0) {
     return (
       <div className="model-selector" data-testid="model-selector">
@@ -183,6 +227,7 @@ export function ModelSelector() {
           Place a GGUF model file or MLX model folder in the models folder, then
           restart to begin.
         </p>
+        {renderMlxRuntimeSetup()}
         {renderDownloads()}
       </div>
     );
@@ -198,6 +243,7 @@ export function ModelSelector() {
           Place a GGUF model file or MLX model folder in the models folder, then
           restart to begin.
         </p>
+        {renderMlxRuntimeSetup()}
         {renderDownloads()}
       </div>
     );
@@ -250,6 +296,7 @@ export function ModelSelector() {
           />
         </div>
       )}
+      {renderMlxRuntimeSetup()}
       {renderDownloads()}
     </div>
   );

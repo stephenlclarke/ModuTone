@@ -29,6 +29,8 @@ it.
   Apple Silicon MLX model directory.
 - **Explicit model downloads:** Settings can download cataloged model files
   without sending writing content off-device.
+- **Guided Apple Silicon setup:** Settings can create the private MLX Python
+  runtime needed by GPT-OSS TQ3.
 - **Non-destructive editing:** Proposed output stays separate until accepted.
 - **Composable style controls:** Tags and profiles express writing intent.
 
@@ -70,20 +72,24 @@ flowchart TD
     F --> H[Refresh model registry]
     G --> H
     H --> B
-    C -- Yes --> I{Model ready?}
-    I -- No --> J[Warm selected local model]
-    J --> K[Worker sidecar loads model]
-    K --> L[Ready for generation]
-    I -- Yes --> L
-    L --> M[Generate or refine]
-    M --> N[React state sends Tauri IPC command]
-    N --> O[Rust backend validates request and composes prompt]
-    O --> P[Worker runs llama.cpp or MLX inference locally]
-    P --> Q[Backend emits generation events]
-    Q --> R[Frontend updates accepted output or proposal]
-    R --> S{Refine again?}
-    S -- Yes --> M
-    S -- No --> T[Accept, copy, or clear output]
+    C -- Yes --> I{MLX model?}
+    I -- Yes --> J{MLX runtime installed?}
+    J -- No --> K[Settings creates private Python MLX runtime]
+    K --> L[Install mlx-lm, TurboQuant, and Hugging Face tooling]
+    L --> M[Warm selected local model]
+    J -- Yes --> M
+    I -- No --> M
+    M --> N[Worker sidecar loads model]
+    N --> O[Ready for generation]
+    O --> P[Generate or refine]
+    P --> Q[React state sends Tauri IPC command]
+    Q --> R[Rust backend validates request and composes prompt]
+    R --> S[Worker runs llama.cpp or MLX inference locally]
+    S --> T[Backend emits generation events]
+    T --> U[Frontend updates accepted output or proposal]
+    U --> V{Refine again?}
+    V -- Yes --> P
+    V -- No --> W[Accept, copy, or clear output]
 ```
 
 See [Architecture](docs/ARCHITECTURE.md) for the full technical breakdown.
@@ -112,10 +118,11 @@ macOS and Linux packages can be built from source. See
 | OS | Windows 11 x64, macOS, or Linux |
 | RAM | 8 GB for 3B model, 16 GB for MLX TQ3, 24 GB for 14B model |
 | Disk | Varies by downloaded model, from about 2.5 GB to 10.5 GB |
-| Apple Silicon MLX runtime | Python 3.12, `mlx-lm`, `turboquant-mlx-full` |
+| Apple Silicon MLX runtime | Python 3.14 preferred; Settings installs runtime |
 
 ModuTone detects available RAM and labels models as recommended, caution, or
 unsupported for the current system.
+Python 3.13 and 3.12 remain supported fallbacks for Apple Silicon MLX setup.
 
 ## Building from Source
 
@@ -124,7 +131,7 @@ Prerequisites:
 - Node.js 20 or newer
 - Rust stable
 - Platform dependencies required by Tauri
-- Python 3.12 with MLX packages for Apple Silicon GPT-OSS TQ3
+- Python 3.14 preferred for Apple Silicon GPT-OSS TQ3 runtime setup
 
 ```bash
 npm ci
@@ -140,13 +147,13 @@ commands. On Apple Silicon, see
 
 ## Testing
 
-Current local validation covers 427 test cases:
+Current local validation covers 433 test cases:
 
 ```bash
-# Frontend, contract, and TypeScript tests: 243 tests
+# Frontend, contract, and TypeScript tests: 246 tests
 npm run test
 
-# Rust backend and worker tests: 183 tests
+# Rust backend and worker tests: 186 tests
 npm run test:rust
 
 # Playwright smoke test: 1 test

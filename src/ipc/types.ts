@@ -242,6 +242,26 @@ export interface ModelDownloadCancelResponse {
   canceled: boolean;
 }
 
+export interface MlxRuntimeStatusResponse {
+  supported: boolean;
+  installed: boolean;
+  installing: boolean;
+  installDir: string;
+  pythonPath: string | null;
+  unavailableReason: string | null;
+}
+
+export interface MlxRuntimeInstallStartRequest {
+  contractVersion: ContractVersion;
+}
+
+export interface MlxRuntimeInstallStartResponse {
+  started: boolean;
+  alreadyInstalled: boolean;
+  installDir: string;
+  pythonPath: string | null;
+}
+
 // --- Runtime ---
 
 export interface RuntimeStatusResponse {
@@ -383,5 +403,19 @@ export interface ModelDownloadProgressEvent {
   bytesDownloaded: number;
   totalBytes: number;
   fileName?: string;
+  error?: string;
+}
+
+export type MlxRuntimeInstallStatus =
+  | "queued"
+  | "installing"
+  | "completed"
+  | "failed";
+
+export interface MlxRuntimeInstallProgressEvent {
+  contractVersion: ContractVersion;
+  status: MlxRuntimeInstallStatus;
+  step: string;
+  detail?: string;
   error?: string;
 }

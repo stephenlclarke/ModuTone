@@ -8,6 +8,8 @@ import type {
   SettingsGetResponse,
   TagsListResponse,
   ProfilesListResponse,
+  MlxRuntimeInstallStartResponse,
+  MlxRuntimeStatusResponse,
   BuiltInTagEntry,
   CustomTagEntry,
   ProfileEntry,
@@ -30,6 +32,8 @@ vi.mock("../../ipc/commands", () => ({
   modelsList: vi.fn(),
   modelDownloadStart: vi.fn(),
   modelDownloadCancel: vi.fn(),
+  mlxRuntimeStatus: vi.fn(),
+  mlxRuntimeInstallStart: vi.fn(),
   runtimeGetStatus: vi.fn(),
 }));
 
@@ -48,6 +52,8 @@ import {
   modelsList,
   modelDownloadStart,
   modelDownloadCancel,
+  mlxRuntimeStatus,
+  mlxRuntimeInstallStart,
 } from "../../ipc/commands";
 
 const mockSettingsGet = vi.mocked(settingsGet);
@@ -64,11 +70,29 @@ const mockProfilesResetToDefault = vi.mocked(profilesResetToDefault);
 const mockModelsList = vi.mocked(modelsList);
 const mockModelDownloadStart = vi.mocked(modelDownloadStart);
 const mockModelDownloadCancel = vi.mocked(modelDownloadCancel);
+const mockMlxRuntimeStatus = vi.mocked(mlxRuntimeStatus);
+const mockMlxRuntimeInstallStart = vi.mocked(mlxRuntimeInstallStart);
 
 const defaultModelsResponse = {
   models: [],
   systemRamBytes: 16_000_000_000,
   systemVramBytes: null,
+};
+
+const defaultMlxRuntimeResponse: MlxRuntimeStatusResponse = {
+  supported: true,
+  installed: false,
+  installing: false,
+  installDir: "/tmp/modutone/mlx/.venv",
+  pythonPath: null,
+  unavailableReason: null,
+};
+
+const defaultMlxRuntimeInstallResponse: MlxRuntimeInstallStartResponse = {
+  started: true,
+  alreadyInstalled: false,
+  installDir: "/tmp/modutone/mlx/.venv",
+  pythonPath: "/tmp/modutone/mlx/.venv/bin/python",
 };
 
 // --- Fixtures ---
@@ -127,6 +151,10 @@ describe("metadataSlice", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockModelsList.mockResolvedValue(defaultModelsResponse);
+    mockMlxRuntimeStatus.mockResolvedValue(defaultMlxRuntimeResponse);
+    mockMlxRuntimeInstallStart.mockResolvedValue(
+      defaultMlxRuntimeInstallResponse,
+    );
     store = createTestStore();
   });
 
@@ -544,6 +572,58 @@ describe("metadataSlice", () => {
       expect(mockModelDownloadCancel).toHaveBeenCalledWith({
         contractVersion: 1,
         modelId: "qwen2.5-3b-instruct",
+      });
+    });
+
+    it("loadMetadata populates MLX runtime status", async () => {
+      mockMlxRuntimeStatus.mockResolvedValue({
+        ...defaultMlxRuntimeResponse,
+        installed: true,
+        pythonPath: "/tmp/modutone/mlx/.venv/bin/python",
+      });
+      mockSettingsGet.mockResolvedValue(makeSettings());
+      mockTagsList.mockResolvedValue(makeTagsResponse());
+      mockProfilesList.mockResolvedValue(makeProfilesResponse([makeProfile()]));
+
+      await store.getState().loadMetadata();
+
+      expect(store.getState().metadata.mlxRuntime).toMatchObject({
+        supported: true,
+        installed: true,
+        installing: false,
+        status: "completed",
+        pythonPath: "/tmp/modutone/mlx/.venv/bin/python",
+      });
+    });
+
+    it("starts MLX runtime setup and records queued state", async () => {
+      await store.getState().installMlxRuntime();
+
+      expect(mockMlxRuntimeInstallStart).toHaveBeenCalledWith({
+        contractVersion: 1,
+      });
+      expect(store.getState().metadata.mlxRuntime).toMatchObject({
+        installing: true,
+        status: "queued",
+        step: "queued",
+        detail: "Preparing MLX runtime setup",
+      });
+    });
+
+    it("updates MLX runtime progress from backend events", () => {
+      store.getState().handleMlxRuntimeProgress({
+        contractVersion: 1,
+        status: "installing",
+        step: "installing_packages",
+        detail: "Installing mlx-lm and TurboQuant MLX packages",
+      });
+
+      expect(store.getState().metadata.mlxRuntime).toMatchObject({
+        installed: false,
+        installing: true,
+        status: "installing",
+        step: "installing_packages",
+        detail: "Installing mlx-lm and TurboQuant MLX packages",
       });
     });
   });

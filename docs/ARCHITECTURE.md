@@ -26,7 +26,8 @@ Main responsibilities:
 - Render editors, model controls, settings, feedback, tabs, and status.
 - Keep session content in memory-only Zustand state.
 - Call typed IPC wrappers in `src/ipc/commands.ts`.
-- Listen for backend generation, runtime, and model download events.
+- Listen for backend generation, runtime, model download, and MLX runtime setup
+  events.
 
 State slices:
 
@@ -62,11 +63,12 @@ Initialization sequence:
 4. Resolve Tauri's resource directory.
 5. Initialize `ModelRegistry`.
 6. Initialize `ModelDownloadManager`.
-7. Resolve the worker sidecar path.
-8. Initialize `WorkerSupervisor`.
-9. Initialize `JobCoordinator`.
-10. Probe `PlatformCapabilities`.
-11. Spawn the worker in the background.
+7. Initialize `MlxRuntimeManager`.
+8. Resolve the worker sidecar path.
+9. Initialize `WorkerSupervisor`.
+10. Initialize `JobCoordinator`.
+11. Probe `PlatformCapabilities`.
+12. Spawn the worker in the background.
 
 ## Model Discovery
 
@@ -97,6 +99,12 @@ download is available only on Apple Silicon macOS.
 
 The optional MLX backend is macOS arm64 only and is documented in
 [Apple Silicon MLX Setup](APPLE_SILICON.md).
+
+On Apple Silicon, the MLX runtime manager can create a private Python
+environment under the app data directory at `mlx/.venv/`. It prefers Python 3.14
+as a bootstrap interpreter with 3.13 and 3.12 fallbacks, installs `mlx-lm`,
+`turboquant-mlx-full`, and Hugging Face tooling, and reports setup progress to
+the frontend.
 
 ## Worker
 
@@ -129,7 +137,7 @@ threads with cancellation tokens.
 
 ## IPC Commands
 
-The backend exposes 24 Tauri commands.
+The backend exposes 26 Tauri commands.
 
 | Category | Commands |
 | --- | --- |
@@ -140,6 +148,7 @@ The backend exposes 24 Tauri commands.
 | Tags | `tags_list`, `tags_create`, `tags_update`, `tags_delete` |
 | Models | `models_list`, `model_download_start` |
 | Models | `model_download_cancel` |
+| Models | `mlx_runtime_status`, `mlx_runtime_install_start` |
 | Runtime | `runtime_get_status`, `runtime_warm_model` |
 | Generation | `generation_start_initial`, `generation_start_refinement` |
 | Generation | `generation_cancel` |
@@ -157,6 +166,7 @@ The backend emits:
 - `generation:failed`
 - `generation:canceled`
 - `model:download-progress`
+- `mlx:runtime-progress`
 
 All command wrappers return a `CommandResponse<T>` shape:
 

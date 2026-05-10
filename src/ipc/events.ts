@@ -12,6 +12,7 @@ import type {
   GenerationFailedEvent,
   GenerationCanceledEvent,
   ModelDownloadProgressEvent,
+  MlxRuntimeInstallProgressEvent,
 } from "./types";
 
 /**
@@ -87,6 +88,16 @@ export async function subscribeToBackendEvents(): Promise<UnlistenFn> {
       "model:download-progress",
       (event) => {
         useAppStore.getState().handleModelDownloadProgress(event.payload);
+      },
+    ),
+  );
+
+  // mlx:runtime-progress — Apple Silicon MLX Python runtime setup updates
+  unlisteners.push(
+    await listen<MlxRuntimeInstallProgressEvent>(
+      "mlx:runtime-progress",
+      (event) => {
+        useAppStore.getState().handleMlxRuntimeProgress(event.payload);
       },
     ),
   );

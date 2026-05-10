@@ -29,6 +29,9 @@ import type {
   ModelDownloadStartResponse,
   ModelDownloadCancelRequest,
   ModelDownloadCancelResponse,
+  MlxRuntimeStatusResponse,
+  MlxRuntimeInstallStartRequest,
+  MlxRuntimeInstallStartResponse,
   RuntimeStatusResponse,
   WarmModelRequest,
   SetBooleanRequest,
@@ -143,6 +146,19 @@ export async function modelDownloadCancel(
   return invokeCommand<ModelDownloadCancelResponse>("model_download_cancel", {
     request,
   });
+}
+
+export async function mlxRuntimeStatus(): Promise<MlxRuntimeStatusResponse> {
+  return invokeCommand<MlxRuntimeStatusResponse>("mlx_runtime_status");
+}
+
+export async function mlxRuntimeInstallStart(
+  request: MlxRuntimeInstallStartRequest,
+): Promise<MlxRuntimeInstallStartResponse> {
+  return invokeCommand<MlxRuntimeInstallStartResponse>(
+    "mlx_runtime_install_start",
+    { request },
+  );
 }
 
 // --- Runtime ---

@@ -273,6 +273,32 @@ pub struct ModelDownloadCancelResponse {
     pub canceled: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MlxRuntimeStatusResponse {
+    pub supported: bool,
+    pub installed: bool,
+    pub installing: bool,
+    pub install_dir: String,
+    pub python_path: Option<String>,
+    pub unavailable_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MlxRuntimeInstallStartRequest {
+    pub contract_version: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MlxRuntimeInstallStartResponse {
+    pub started: bool,
+    pub already_installed: bool,
+    pub install_dir: String,
+    pub python_path: Option<String>,
+}
+
 // --- Runtime ---
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

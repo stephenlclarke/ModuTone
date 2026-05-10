@@ -23,6 +23,11 @@ Model downloads are explicit user actions from Settings. When a user starts a
 download, ModuTone contacts Hugging Face only to retrieve model files and writes
 them to the app data models directory.
 
+Apple Silicon MLX runtime setup is also an explicit Settings action. When a
+user starts runtime setup, ModuTone uses Python package tooling to retrieve MLX
+runtime packages from package indexes. Writing content is not sent with those
+requests.
+
 ### No Telemetry
 
 ModuTone has no analytics SDK, crash reporter, usage tracker, or phone-home
@@ -58,6 +63,7 @@ The app writes only operational metadata.
 | Profiles | User-created names and configuration |
 | Custom tags | User-created tag labels and categories |
 | Models | User-downloaded model weights and catalog metadata |
+| MLX runtime | Optional Python environment and packages for Apple Silicon |
 | Logs | Redacted operational metadata |
 
 Default app data locations:

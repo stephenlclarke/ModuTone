@@ -2,6 +2,7 @@
 // Command handler modules
 
 pub mod generation;
+pub mod mlx_runtime;
 pub mod models;
 pub mod platform;
 pub mod profiles;

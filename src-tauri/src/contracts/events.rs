@@ -112,3 +112,24 @@ pub struct ModelDownloadProgressEvent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MlxRuntimeInstallStatus {
+    Queued,
+    Installing,
+    Completed,
+    Failed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MlxRuntimeInstallProgressEvent {
+    pub contract_version: u32,
+    pub status: MlxRuntimeInstallStatus,
+    pub step: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
