@@ -1,5 +1,7 @@
 # ModuTone
 
+![ModuTone desktop app screenshot](docs/assets/modutone-app.png)
+
 ModuTone is a privacy-first desktop writing refinement app. It runs local
 language models on your machine and does not send writing content to cloud
 services, telemetry, or remote APIs.
