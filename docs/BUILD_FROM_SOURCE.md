@@ -3,24 +3,24 @@
 ## Prerequisites
 
 | Tool | Version | Purpose |
-|------|---------|---------|
-| Node.js | 24+ | Frontend build, scripts |
-| npm | (bundled with Node) | Package management |
-| Rust | stable | Backend and worker compilation |
-| Tauri CLI | v2 | Desktop app bundling |
-| Clippy | (Rust component) | Lint checks |
-| rustfmt | (Rust component) | Format checks |
+| --- | --- | --- |
+| Node.js | 24 or newer | Frontend build and scripts |
+| npm | Bundled with Node | Package management |
+| Rust | stable | Backend and worker builds |
+| Clippy | Rust component | Rust linting |
+| rustfmt | Rust component | Rust formatting |
 
-### Install Tauri CLI
+The Tauri CLI is installed as a project dev dependency. A global Tauri CLI is
+optional when using the npm scripts.
 
-```bash
-npm install -g @tauri-apps/cli
-```
+## Linux System Dependencies
 
-### Linux-only system dependencies
+On Debian or Ubuntu based systems, install Tauri's WebKit dependencies:
 
 ```bash
-sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+sudo apt-get update
+sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev
+sudo apt-get install -y librsvg2-dev patchelf
 ```
 
 ## Clone and Install
@@ -31,100 +31,126 @@ cd modutone
 npm install
 ```
 
-## Build Steps
+## Worker Sidecar
 
-### 1. Build the worker sidecar
-
-The worker is a separate Rust binary that must be compiled before the Tauri app:
+The worker is a separate Rust binary. Build it before running Rust checks or a
+Tauri build:
 
 ```bash
-# Release build
+# Release sidecar
 npm run build:sidecar
 
-# Or debug build for development
+# Debug sidecar for development and tests
 npm run build:sidecar:dev
 ```
 
-This compiles `src-worker/` and copies the binary to `src-tauri/binaries/` with the correct platform suffix (e.g., `modutone-worker-x86_64-pc-windows-msvc.exe`).
+The copy script writes the sidecar into `src-tauri/binaries/` with the current
+platform suffix.
 
-### 2. Build the application
+## Application Build
 
 ```bash
-# Development mode (hot reload)
+# Development mode
 npm run dev
 
-# Production build
+# Production build without bundled GGUF weights
 npm run build
 ```
 
-`npm run build` runs `tauri build`, which:
-1. Compiles the frontend with Vite
-2. Compiles the Rust backend
-3. Bundles everything into a platform-specific installer (NSIS on Windows, DMG on macOS, AppImage/deb on Linux)
+`npm run build` runs the Tauri build flow:
 
-The output is in `src-tauri/target/release/bundle/`.
+1. Compile the frontend with Vite.
+2. Compile the Rust backend.
+3. Bundle a platform artifact.
 
-### 3. Add model files (required for inference)
+Output artifacts are written under:
 
-This step is only needed when building from source. End users get models automatically via the installer.
-
-Download quantized GGUF files from HuggingFace and place them in `src-tauri/resources/models/`:
-
-| Filename | Source |
-|----------|--------|
-| `qwen2.5-3b-instruct-q5_k_m.gguf` | [Qwen/Qwen2.5-3B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF) |
-| `qwen2.5-14b-instruct-q5_k_m.gguf` | [Qwen/Qwen2.5-14B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-GGUF) |
-
-Download the specific quantization variant listed (Q5_K_M or Q4_K_M) from each model's "Files and versions" tab on HuggingFace.
-
-The model catalog is at `src-tauri/resources/models/model_catalog.json`. ModuTone discovers models by matching filenames in this catalog.
-
-## Package with Models (Windows)
-
-To create a distributable installer with bundled models:
-
-```bash
-# Validate model files, build, and create standalone bundle
-npm run package:bundle
-
-# Or create SFX self-extracting installer
-npm run package:installer
+```text
+src-tauri/target/release/bundle/
 ```
 
-The SFX installer requires:
-- 7-Zip installed at `C:\Program Files\7-Zip\7z.exe`
-- SFX stub built from `tools/sfx-stub/` (run `cargo build --release` in that directory)
-- At install time, either 7-Zip installed on the target machine or `7za.exe`/`7z.exe` next to the launcher. To produce a launcher with an embedded extractor, place `tools/7za.exe` locally and build the stub with `cargo build --release --features embedded-7za`.
+## Model Files
 
-## Development Workflow
+Model files are required for inference and release packaging. The repository
+tracks `src-tauri/resources/models/model_catalog.json`, but not the large GGUF
+weights.
+
+Place valid model files in:
+
+```text
+src-tauri/resources/models/
+```
+
+Expected filenames:
+
+| Model | Filename |
+| --- | --- |
+| Qwen 2.5 3B Instruct | `qwen2.5-3b-instruct-q5_k_m.gguf` |
+| Qwen 2.5 14B Instruct | `qwen2.5-14b-instruct-q5_k_m.gguf` |
+
+Download the matching Q5_K_M GGUF variants from the upstream Qwen model pages
+on Hugging Face. The catalog checks filenames and rejects truncated files that
+are below the install-size threshold.
+
+Validate local model files with:
 
 ```bash
-# Start development mode (frontend hot reload + Tauri window)
-npm run dev
+npm run prepare:models
+```
 
-# Run frontend tests
-npm run test
+This command now fails when no valid GGUF files are present.
 
-# Run Rust tests
-npm run test:rust
+## Packaging with Models
 
-# Lint and format
+Use these scripts after model files are in place:
+
+```bash
+# Windows folder bundle
+npm run package:bundle
+
+# Windows SFX launcher plus payload archive
+npm run package:installer
+
+# Linux package with bundled models
+npm run package:linux
+
+# macOS package with bundled models
+npm run package:macos
+```
+
+The Windows SFX script requires:
+
+- 7-Zip available at `C:\Program Files\7-Zip\7z.exe`, or `SEVEN_ZIP_PATH` set.
+- The SFX stub built from `tools/sfx-stub/`.
+- A companion or installed extractor at install time.
+
+To embed the extractor in the launcher, place `tools/7za.exe` locally and build
+the stub with:
+
+```bash
+cargo build --release --features embedded-7za
+```
+
+## Validation
+
+```bash
+npm run typecheck
 npm run lint
 npm run format:check
+npm run test
 cargo fmt --check --all
 npm run lint:rust
-
-# Type check
-npm run typecheck
+npm run test:rust
+npm run test:e2e
 ```
 
 ## Project Layout
 
 | Directory | Contents |
-|-----------|----------|
-| `src/` | React frontend (TypeScript, components, state, IPC) |
-| `src-tauri/` | Rust backend (Tauri app, commands, services, domain) |
-| `src-worker/` | Rust inference worker (llama.cpp sidecar) |
-| `tests/` | E2E (Playwright) and contract tests |
-| `scripts/` | Build and packaging Node.js scripts |
-| `tools/sfx-stub/` | SFX installer stub (Rust source) |
+| --- | --- |
+| `src/` | React frontend |
+| `src-tauri/` | Rust backend and Tauri app |
+| `src-worker/` | Rust inference worker |
+| `tests/` | E2E and contract tests |
+| `scripts/` | Build and packaging scripts |
+| `tools/sfx-stub/` | Rust SFX launcher source |

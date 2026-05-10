@@ -1,29 +1,33 @@
 # Validation Report
 
-Test and analysis results for ModuTone v1.0.0, verified on Windows 11 x64.
+Validation results for the current `repo-review-fixes` branch.
+
+Last local validation: 2026-05-10.
 
 ## Test Summary
 
 | Category | Framework | Count | Status |
-|----------|-----------|-------|--------|
-| TypeScript unit + integration | Vitest | 232 | Pass |
-| Rust unit + integration | Cargo test | 166 | Pass |
-| E2E smoke | Playwright | Present | Pass |
-| Contract (IPC types) | Custom | Present | Pass |
-| **Total** | | **398** | **Pass** |
+| --- | --- | --- | --- |
+| TypeScript, frontend, and contract | Vitest | 239 | Pass |
+| Rust backend and worker | Cargo test | 173 | Pass |
+| E2E smoke | Playwright | 1 | Pass |
+| Total | Mixed | 413 | Pass |
 
-## TypeScript Tests (Vitest)
+## TypeScript Tests
 
-232 tests covering:
+`npm run test` runs 239 Vitest tests across:
 
-- **State management** — All four Zustand slices (metadata, model loading, runtime, session)
-- **Component behavior** — Theme provider, tag conflict detection
-- **Concurrency** — Duplicate job prevention on rapid input, IPC race conditions
-- **Privacy regression** — Verifies no content leakage through logs, error messages, or state snapshots
-- **Session lifecycle** — Tab creation, switching, closing, content isolation between tabs
-- **Tab state machine** — State transitions (idle → generating → reviewing → accepting/rejecting)
+- Frontend component behavior.
+- Zustand state slices.
+- Session lifecycle and tab state transitions.
+- Model loading and runtime state.
+- IPC contract checks.
+- Privacy regression coverage.
+- Concurrency behavior.
 
 Test files:
+
+- `tests/contract/ipc.spec.ts`
 - `src/app/ThemeProvider.test.tsx`
 - `src/components/tags/TagConflictHint.test.ts`
 - `src/state/metadata/concurrency.test.ts`
@@ -37,53 +41,67 @@ Test files:
 - `src/tests/concurrency-ipc.test.ts`
 - `src/tests/privacy-regression.test.ts`
 
-## Rust Tests (Cargo test)
+## Rust Tests
 
-166 tests across 16 test modules covering:
+`npm run test:rust` builds the worker sidecar and runs 173 Rust tests across:
 
-- **Domain logic** — Model registry, job coordination, profile management, settings, tags
-- **Service layer** — Worker supervisor, metadata persistence, inference pipeline
-- **IPC contracts** — Command handler validation, error typing
-- **Integration** — Multi-component interaction scenarios
-- **Privacy regression** — Log redaction verification, content non-persistence
-- **Upgrade migration** — Settings and profile schema migration across versions
+- Command validation.
+- Model catalog discovery.
+- Worker supervision.
+- Job coordination.
+- Prompt composition.
+- Metadata persistence and migrations.
+- Privacy regression checks.
+- Worker adapter integration.
 
-Test files:
-- Inline `#[cfg(test)]` modules throughout `src-tauri/src/`
-- `src-tauri/tests/integration/mod.rs`
+Test locations:
+
+- Inline `#[cfg(test)]` modules in `src-tauri/src/`.
 - `src-tauri/tests/privacy_regression.rs`
 - `src-tauri/tests/upgrade_migration.rs`
 - `src-worker/tests/integration.rs`
 
-## Contract Tests
-
-- `tests/contract/ipc.spec.ts` — Verifies TypeScript IPC types align with Rust command signatures and response structures.
-
 ## E2E Tests
 
-- `tests/e2e/smoke.spec.ts` — Playwright smoke test verifying the application launches, renders the main window, and responds to basic interactions.
+`npm run test:e2e` runs the Playwright smoke test in
+`tests/e2e/smoke.spec.ts`.
+
+The smoke test verifies that the app shell loads, the main editors render, the
+Generate button starts disabled with no model, and a second workspace tab can be
+created.
 
 ## Static Analysis
 
-| Tool | Scope | Configuration |
-|------|-------|---------------|
-| ESLint 9 | TypeScript/React | `eslint.config.js` — React hooks plugin, TypeScript-ESLint |
-| Prettier 3 | TypeScript/CSS | `.prettierrc` — Consistent formatting |
-| Clippy | Rust | `-D warnings` — All warnings treated as errors |
-| rustfmt | Rust | Default configuration |
-| TypeScript | Type checking | `tsc --noEmit` — Strict mode |
+| Tool | Scope | Command |
+| --- | --- | --- |
+| TypeScript | Type checking | `npm run typecheck` |
+| ESLint 9 | Frontend linting | `npm run lint` |
+| Prettier 3 | Frontend formatting | `npm run format:check` |
+| rustfmt | Rust formatting | `cargo fmt --check --all` |
+| Clippy | Rust linting | `npm run lint:rust` |
+| markdownlint | Markdown linting | `markdownlint ...` |
 
 ## CI Pipeline
 
-GitHub Actions runs on every push and PR to `main`:
+GitHub Actions runs on pushes and pull requests targeting `main`.
 
-1. **Lint and test** (Ubuntu):
-   - TypeScript typecheck, ESLint, Prettier check
-   - Vitest (all frontend tests)
-   - Cargo fmt check
-   - Worker sidecar preparation for Tauri `externalBin`
-   - Clippy and Cargo test
+The Ubuntu lint-and-test job runs:
 
-2. **Build matrix** (Ubuntu, Windows, macOS):
-   - Full `npm run build` on all three platforms
-   - Requires lint-and-test to pass first
+- TypeScript type checking.
+- ESLint.
+- Prettier check.
+- Vitest.
+- Rust formatting.
+- Worker sidecar preparation.
+- Clippy with warnings denied.
+- Cargo workspace tests.
+
+The build matrix runs on Ubuntu, Windows, and macOS. Each matrix leg runs:
+
+- Dependency installation.
+- Worker sidecar preparation.
+- Cargo workspace tests on that OS.
+- Full `npm run build`.
+
+This means platform-specific Rust behavior is tested on each supported CI
+operating system before the platform build.

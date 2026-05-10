@@ -1,140 +1,170 @@
 # Architecture
 
-ModuTone is a desktop application built on a three-process architecture. Each process has a distinct responsibility and communicates through well-defined boundaries.
+ModuTone is a desktop app with three cooperating processes. Each process owns a
+clear responsibility and communicates through typed boundaries.
 
 ## Process Model
 
-```
-┌─────────────────────┐     Tauri IPC      ┌─────────────────────┐
-│                     │   (17 commands)     │                     │
-│   Frontend          │ ◄────────────────►  │   Backend           │
-│   React + TS        │                     │   Rust + Tauri 2    │
-│   Zustand state     │                     │                     │
-│                     │                     │                     │
-└─────────────────────┘                     └──────────┬──────────┘
-                                                       │
-                                              stdin/stdout
-                                              JSON Lines
-                                                       │
-                                            ┌──────────▼──────────┐
-                                            │                     │
-                                            │   Worker (sidecar)  │
-                                            │   Rust + llama.cpp  │
-                                            │                     │
-                                            └─────────────────────┘
+```text
+Frontend webview  <---- Tauri IPC ---->  Rust backend
+React + Zustand                         Tauri commands
+                                           |
+                                           | stdin/stdout JSON Lines
+                                           v
+                                      Worker sidecar
+                                      Rust + llama.cpp
 ```
 
-### Frontend (React + TypeScript)
+## Frontend
 
-**Location:** `src/`
+Location: `src/`
 
-The UI layer, rendered in a Tauri webview. Manages all user interaction and display state.
+The frontend runs inside the Tauri webview.
 
-- **Components** (`src/components/`) — Editors, feedback dialogs, settings panels, model selector, profile management, tag system, shell (status bar, tabs).
-- **State** (`src/state/`) — Four Zustand slices:
-  - `metadata` — Cached backend state (settings, profiles, tags, models)
-  - `modelLoading` — Model warm-up progress tracking
-  - `runtime` — Worker status, active inference jobs
-  - `session` — Tab state, input/output buffers (ephemeral, session-only)
-- **IPC** (`src/ipc/`) — Typed wrappers around Tauri's `invoke()`. All backend communication goes through `commands.ts`. Types mirror Rust contracts in `types.ts`.
+Main responsibilities:
 
-### Backend (Rust + Tauri 2)
+- Render editors, model controls, settings, feedback, tabs, and status.
+- Keep session content in memory-only Zustand state.
+- Call typed IPC wrappers in `src/ipc/commands.ts`.
+- Listen for backend generation and runtime events.
 
-**Location:** `src-tauri/`
+State slices:
 
-The application core. Handles persistence, process management, and domain logic.
+- `metadata`: settings, profiles, tags, models, and RAM metadata.
+- `modelLoading`: warm-up progress for the selected model.
+- `runtime`: worker state, loaded model, and active job state.
+- `session`: per-tab input, accepted output, proposals, and UI state.
 
-**Module structure:**
+## Backend
+
+Location: `src-tauri/`
+
+The backend is the Tauri application core. It handles persistence, IPC command
+validation, model discovery, platform capability checks, and worker lifecycle.
 
 | Module | Purpose |
-|--------|---------|
-| `commands/` | Tauri command handlers (generation, models, platform, profiles, runtime, settings, tags) |
-| `contracts/` | Request/response types, error types, events, shared enums |
-| `domain/` | Core data models (jobs, models, profiles, settings, tags) |
-| `services/diagnostics/` | Logger initialization with content redaction |
-| `services/inference/` | ModelRegistry, JobCoordinator, WorkerSupervisor |
-| `services/persistence/` | MetadataStore (settings, profiles, tags on disk) |
-| `services/platform/` | OS-specific features (privacy blackout, launch-at-login) |
-| `infrastructure/` | Platform-specific implementations (Windows, macOS, Linux) |
-| `app/` | Lifecycle management, instance locking, shutdown |
+| --- | --- |
+| `commands/` | Tauri command handlers |
+| `contracts/` | IPC requests, responses, events, and errors |
+| `domain/` | Core settings, model, job, profile, and tag types |
+| `services/diagnostics/` | Log setup and redaction |
+| `services/inference/` | Model registry, jobs, worker supervision |
+| `services/persistence/` | Settings, profiles, tags, and migrations |
+| `services/platform/` | Privacy blackout and other platform probes |
+| `infrastructure/` | OS-specific implementation boundary |
+| `app/` | Lifecycle, instance lock, and shutdown helpers |
 
-**Initialization sequence:**
-1. Resolve app data directory
-2. Initialize file logger (non-fatal on failure)
-3. Initialize MetadataStore (settings, profiles, tags)
-4. Initialize ModelRegistry (discover available GGUF models)
-5. Resolve worker binary path
-6. Initialize WorkerSupervisor (process lifecycle)
-7. Initialize JobCoordinator (inference job tracking)
-8. Probe PlatformCapabilities
-9. Spawn worker (non-blocking)
+Initialization sequence:
 
-### Worker (Rust + llama.cpp)
+1. Resolve the app data directory.
+2. Initialize file logging.
+3. Initialize `MetadataStore`.
+4. Resolve Tauri's resource directory.
+5. Initialize `ModelRegistry`.
+6. Resolve the worker sidecar path.
+7. Initialize `WorkerSupervisor`.
+8. Initialize `JobCoordinator`.
+9. Probe `PlatformCapabilities`.
+10. Spawn the worker in the background.
 
-**Location:** `src-worker/`
+## Model Discovery
 
-A standalone Rust binary that runs as a Tauri sidecar. Handles model loading and inference via `llama-cpp-2` bindings.
+The model registry discovers GGUF files from two locations:
 
-**Communication protocol:** JSON Lines over stdin/stdout.
+1. Bundled models under Tauri's resource directory at `models/`.
+2. User models under the app data directory at `models/`.
 
-**Inbound messages:**
-- `LoadModel` — Load a GGUF file into memory
-- `ExecuteJob` — Run inference (spawns a thread, streams progress)
-- `CancelJob` — Set cancellation token for an active job
-- `Shutdown` — Exit cleanly
+Environment overrides:
 
-**Outbound messages:**
-- `Ready` — Worker initialized
-- `ModelLoaded` / `ModelLoadFailed` — Load result
-- `JobAck` — Job accepted
-- `JobProgress` — Streaming token output
-- `JobCompleted` / `JobFailed` / `JobCanceled` — Terminal states
+- `MODUTONE_BUNDLED_MODELS_DIR`
+- `MODUTONE_USER_MODELS_DIR`
 
-**Threading model:**
-- Dedicated stdin reader thread
-- Main event loop (receives from stdin reader and inference threads)
-- One inference thread per active job (with cancellation token)
+In debug builds, the source-tree model directory is preferred:
+
+```text
+src-tauri/resources/models/
+```
+
+Release builds use Tauri's resource resolver so Windows, macOS, Linux deb, and
+Linux AppImage layouts stay platform independent.
+
+## Worker
+
+Location: `src-worker/`
+
+The worker is a Rust sidecar that owns model loading and inference through
+llama.cpp.
+
+Inbound messages:
+
+- `LoadModel`
+- `ExecuteJob`
+- `CancelJob`
+- `Shutdown`
+
+Outbound messages:
+
+- `Ready`
+- `ModelLoaded`
+- `ModelLoadFailed`
+- `JobAck`
+- `JobProgress`
+- `JobCompleted`
+- `JobFailed`
+- `JobCanceled`
+
+The worker reads stdin on a dedicated thread. Inference jobs run on worker
+threads with cancellation tokens.
 
 ## IPC Commands
 
-The backend exposes 17 Tauri commands:
+The backend exposes 17 Tauri commands.
 
 | Category | Commands |
-|----------|----------|
-| Settings | `settings_get`, `settings_update`, `model_alias_set`, `model_alias_clear` |
-| Profiles | `profiles_list`, `profiles_create`, `profiles_update`, `profiles_delete`, `profiles_reset_to_default` |
+| --- | --- |
+| Settings | `settings_get`, `settings_update` |
+| Settings | `model_alias_set`, `model_alias_clear` |
+| Profiles | `profiles_list`, `profiles_create`, `profiles_update` |
+| Profiles | `profiles_delete`, `profiles_reset_to_default` |
 | Tags | `tags_list`, `tags_create`, `tags_update`, `tags_delete` |
 | Models | `models_list` |
 | Runtime | `runtime_get_status`, `runtime_warm_model` |
-| Generation | `generation_start_initial`, `generation_start_refinement`, `generation_cancel` |
-| Platform | `app_set_launch_at_login`, `app_set_tray_enabled`, `app_set_privacy_blackout` |
+| Generation | `generation_start_initial`, `generation_start_refinement` |
+| Generation | `generation_cancel` |
+| Platform | `app_set_launch_at_login`, `app_set_tray_enabled` |
+| Platform | `app_set_privacy_blackout` |
 
-All commands return `CommandResponse<T>` — either `{ ok: true, data: T }` or `{ ok: false, error: IpcError }`.
+All command wrappers return a `CommandResponse<T>` shape:
 
-## State Management
-
-Frontend state is organized into four independent Zustand slices:
-
-- **Metadata slice** — Mirrors backend-persisted data (settings, profiles, tags, models). Fetched on app start, updated on mutations.
-- **Model loading slice** — Tracks model warm-up status. Intermediate state between "model selected" and "model ready for inference".
-- **Runtime slice** — Worker process state, active job tracking, streaming output buffers.
-- **Session slice** — Tab management, per-tab input/output content. Entirely ephemeral — destroyed on tab close or app exit.
+- `{ ok: true, data: T }`
+- `{ ok: false, error: IpcError }`
 
 ## Persistence
 
-Only operational metadata is persisted to disk:
+Only operational metadata is written to disk:
 
-- User settings (theme, model preferences, visual style)
-- Profiles (named tag + parameter configurations)
-- Custom tags
+- User settings.
+- Profiles.
+- Custom tags.
+- Redacted logs.
 
-Stored in the OS app data directory (`$APPDATA/com.modutone.desktop` on Windows).
+Writing content, generated output, refinement instructions, and prompts are not
+persisted.
 
-**Never persisted:** User input text, generated output, refinement instructions, inference prompts.
+## Platform Capabilities
+
+Platform capabilities are probed at startup and exposed through runtime status.
+
+Privacy blackout is supported only when ModuTone can rely on meaningful OS
+window protection. Current support is enabled for Windows and macOS probes and
+reported as unsupported on Linux.
+
+Launch-at-login and tray toggles currently return unsupported stubs.
 
 ## Security Boundaries
 
-- Frontend has minimal Tauri capabilities (`core:default`, `shell:allow-open`)
-- Worker process has no direct filesystem access beyond the model file path provided at load time
-- All IPC is typed with explicit error contracts
-- Log system redacts content automatically
+- Webview permissions are limited to `core:default` and `shell:allow-open`.
+- Frontend code cannot call Tauri `invoke()` directly from components.
+- Worker communication is limited to typed JSON Lines messages.
+- Logs must not contain user content.
+- The worker only receives explicit model paths from the backend.
