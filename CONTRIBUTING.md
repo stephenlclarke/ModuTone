@@ -7,7 +7,7 @@ and pull request expectations.
 
 1. Install prerequisites:
 
-   - Node.js 24 or newer
+   - Node.js 20 or newer
    - Rust stable with `clippy` and `rustfmt`
    - Platform dependencies required by Tauri
 
@@ -16,7 +16,7 @@ and pull request expectations.
    ```bash
    git clone <repo-url>
    cd modutone
-   npm install
+   npm ci
    ```
 
 3. Run in development mode:

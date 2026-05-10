@@ -104,12 +104,12 @@ unsupported for the current system.
 
 Prerequisites:
 
-- Node.js 24 or newer
+- Node.js 20 or newer
 - Rust stable
 - Platform dependencies required by Tauri
 
 ```bash
-npm install
+npm ci
 npm run build:sidecar
 npm run build
 ```
