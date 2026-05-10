@@ -7,8 +7,9 @@
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::sync::mpsc::RecvTimeoutError;
 use std::sync::Mutex;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 use serde_json::json;
@@ -20,8 +21,10 @@ use super::{GenerationResult, ModelAdapter};
 
 const PYTHON_BRIDGE: &str = r#"
 import json
+import queue
 import re
 import sys
+import threading
 import traceback
 
 def send(message):
@@ -67,7 +70,7 @@ def clean_output(text):
     return text.strip()
 
 try:
-    from mlx_lm import generate
+    from mlx_lm import stream_generate
     from mlx_lm.models.cache import make_prompt_cache
     from mlx_lm.sample_utils import make_logits_processors, make_sampler
     from turboquant_mlx.generate import load_turboquant
@@ -79,13 +82,47 @@ except Exception as exc:
     send({"type": "load_failed", "error": str(exc)})
     sys.exit(2)
 
-for line in sys.stdin:
-    if not line.strip():
-        continue
+request_queue = queue.Queue()
+cancel_event = threading.Event()
+shutdown_event = threading.Event()
+
+def stdin_reader():
+    for line in sys.stdin:
+        if not line.strip():
+            continue
+        try:
+            request = json.loads(line)
+        except Exception:
+            send({
+                "type": "failed",
+                "error": "Invalid bridge control message",
+                "trace": None,
+            })
+            continue
+
+        request_type = request.get("type")
+        if request_type == "cancel":
+            cancel_event.set()
+            continue
+        if request_type == "shutdown":
+            shutdown_event.set()
+            cancel_event.set()
+            request_queue.put(request)
+            break
+
+        request_queue.put(request)
+
+threading.Thread(target=stdin_reader, daemon=True).start()
+
+while not shutdown_event.is_set():
     try:
-        request = json.loads(line)
+        request = request_queue.get()
         if request.get("type") == "shutdown":
             break
+        if request.get("type") != "generate":
+            continue
+
+        cancel_event.clear()
 
         prompt = format_prompt(
             tokenizer,
@@ -94,7 +131,10 @@ for line in sys.stdin:
         )
         prompt_cache = make_prompt_cache(model)
         sampler = make_sampler(temp=float(request["temperature"]))
-        output = generate(
+        output_parts = []
+        total_tokens = 0
+        canceled = False
+        for response in stream_generate(
             model,
             tokenizer,
             prompt=prompt,
@@ -102,15 +142,24 @@ for line in sys.stdin:
             sampler=sampler,
             logits_processors=make_logits_processors(repetition_penalty=1.1),
             prompt_cache=prompt_cache,
-            verbose=False,
-        )
-        if isinstance(output, tuple):
-            output = output[0]
-        text = clean_output(str(output))
+        ):
+            if cancel_event.is_set() or shutdown_event.is_set():
+                canceled = True
+                break
+            output_parts.append(response.text)
+            total_tokens = int(getattr(response, "generation_tokens", total_tokens))
+
+        if canceled:
+            send({"type": "canceled"})
+            if shutdown_event.is_set():
+                break
+            continue
+
+        text = clean_output("".join(output_parts))
         send({
             "type": "completed",
             "output_text": text,
-            "total_tokens": len(text.split()),
+            "total_tokens": total_tokens,
         })
     except Exception as exc:
         send({
@@ -131,6 +180,7 @@ enum BridgeMessage {
         output_text: String,
         total_tokens: u32,
     },
+    Canceled,
     Failed {
         error: String,
         #[allow(dead_code)]
@@ -262,7 +312,12 @@ impl ModelAdapter for MlxAdapter {
             .flush()
             .map_err(|e| format!("Failed to flush MLX request: {}", e))?;
 
-        match read_bridge_message(&mut bridge.stdout)? {
+        let response = {
+            let BridgeProcess { stdin, stdout, .. } = &mut *bridge;
+            read_bridge_message_with_cancel(stdout, stdin, cancel)?
+        };
+
+        match response {
             BridgeMessage::Completed {
                 output_text,
                 total_tokens,
@@ -284,6 +339,7 @@ impl ModelAdapter for MlxAdapter {
                     duration_ms,
                 })
             }
+            BridgeMessage::Canceled => Err("Job canceled during MLX generation".to_string()),
             BridgeMessage::Failed { error, .. } => Err(format!("MLX generation failed: {}", error)),
             BridgeMessage::LoadFailed { error } => {
                 Err(format!("MLX bridge reported load failure: {}", error))
@@ -291,6 +347,42 @@ impl ModelAdapter for MlxAdapter {
             BridgeMessage::Ready => Err("Unexpected MLX bridge ready message".to_string()),
         }
     }
+}
+
+fn read_bridge_message_with_cancel(
+    stdout: &mut BufReader<ChildStdout>,
+    stdin: &mut ChildStdin,
+    cancel: &CancellationToken,
+) -> Result<BridgeMessage, String> {
+    std::thread::scope(|scope| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        scope.spawn(move || {
+            let _ = tx.send(read_bridge_message(stdout));
+        });
+
+        let mut cancel_sent = false;
+        loop {
+            match rx.recv_timeout(Duration::from_millis(100)) {
+                Ok(result) => return result,
+                Err(RecvTimeoutError::Timeout) => {
+                    if cancel.is_canceled() && !cancel_sent {
+                        serde_json::to_writer(&mut *stdin, &json!({ "type": "cancel" }))
+                            .map_err(|e| format!("Failed to encode MLX cancel: {}", e))?;
+                        stdin
+                            .write_all(b"\n")
+                            .map_err(|e| format!("Failed to write MLX cancel: {}", e))?;
+                        stdin
+                            .flush()
+                            .map_err(|e| format!("Failed to flush MLX cancel: {}", e))?;
+                        cancel_sent = true;
+                    }
+                }
+                Err(RecvTimeoutError::Disconnected) => {
+                    return Err("MLX bridge reader stopped before a response".to_string());
+                }
+            }
+        }
+    })
 }
 
 fn read_bridge_message(stdout: &mut BufReader<ChildStdout>) -> Result<BridgeMessage, String> {
@@ -460,6 +552,12 @@ mod tests {
             }
             other => panic!("unexpected message: {:?}", other),
         }
+    }
+
+    #[test]
+    fn bridge_message_canceled_deserializes() {
+        let message: BridgeMessage = serde_json::from_str(r#"{"type":"canceled"}"#).unwrap();
+        assert!(matches!(message, BridgeMessage::Canceled));
     }
 
     #[test]
