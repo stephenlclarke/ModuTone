@@ -14,6 +14,31 @@ use crate::services::inference::prompt_composer::{PromptComposer, ResolvedTag};
 use crate::services::inference::worker_supervisor::WorkerSupervisor;
 use crate::services::persistence::metadata_store::MetadataStore;
 
+fn ensure_requested_model_loaded(
+    requested_model_id: &str,
+    loaded_model_id: Option<&str>,
+) -> Result<(), IpcError> {
+    match loaded_model_id {
+        None => Err(IpcError {
+            code: "MODEL_NOT_READY".to_string(),
+            message: "No model is loaded. Select and warm a model before generating.".to_string(),
+            detail: None,
+            subsystem: "inference".to_string(),
+        }),
+        Some(loaded) if loaded != requested_model_id => Err(IpcError {
+            code: "MODEL_MISMATCH".to_string(),
+            message: "Requested model is not loaded. Load the selected model before generating."
+                .to_string(),
+            detail: Some(format!(
+                "Requested model: {}; loaded model: {}",
+                requested_model_id, loaded
+            )),
+            subsystem: "inference".to_string(),
+        }),
+        Some(_) => Ok(()),
+    }
+}
+
 /// Resolve active tag IDs into ResolvedTag structs by looking up both
 /// built-in and custom tags in the metadata store.
 fn resolve_tags(
@@ -76,15 +101,8 @@ pub async fn generation_start_initial(
         });
     }
 
-    // Check that a model is loaded before submitting a job
-    if supervisor.get_loaded_model_id().await.is_none() {
-        return Err(IpcError {
-            code: "MODEL_NOT_READY".to_string(),
-            message: "No model is loaded. Select and warm a model before generating.".to_string(),
-            detail: None,
-            subsystem: "inference".to_string(),
-        });
-    }
+    let loaded_model_id = supervisor.get_loaded_model_id().await;
+    ensure_requested_model_loaded(&request.model_id, loaded_model_id.as_deref())?;
 
     // Look up profile
     let profile = metadata_store.get_profile_by_id(&request.profile_id)?;
@@ -139,15 +157,8 @@ pub async fn generation_start_refinement(
         });
     }
 
-    // Check that a model is loaded before submitting a job
-    if supervisor.get_loaded_model_id().await.is_none() {
-        return Err(IpcError {
-            code: "MODEL_NOT_READY".to_string(),
-            message: "No model is loaded. Select and warm a model before generating.".to_string(),
-            detail: None,
-            subsystem: "inference".to_string(),
-        });
-    }
+    let loaded_model_id = supervisor.get_loaded_model_id().await;
+    ensure_requested_model_loaded(&request.model_id, loaded_model_id.as_deref())?;
 
     // Look up profile
     let profile = metadata_store.get_profile_by_id(&request.profile_id)?;
@@ -197,4 +208,30 @@ pub async fn generation_cancel(
     coordinator
         .cancel_job(&supervisor, &app, &request.job_id)
         .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn requested_model_check_accepts_matching_loaded_model() {
+        assert!(ensure_requested_model_loaded("model-a", Some("model-a")).is_ok());
+    }
+
+    #[test]
+    fn requested_model_check_rejects_missing_loaded_model() {
+        let err = ensure_requested_model_loaded("model-a", None).unwrap_err();
+        assert_eq!(err.code, "MODEL_NOT_READY");
+    }
+
+    #[test]
+    fn requested_model_check_rejects_stale_loaded_model() {
+        let err = ensure_requested_model_loaded("model-a", Some("model-b")).unwrap_err();
+        assert_eq!(err.code, "MODEL_MISMATCH");
+        assert!(err
+            .detail
+            .as_deref()
+            .is_some_and(|detail| detail.contains("model-b")));
+    }
 }

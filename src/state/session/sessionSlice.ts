@@ -8,6 +8,7 @@ import type {
   GenerationCompletedEvent,
   GenerationFailedEvent,
   GenerationCanceledEvent,
+  IpcError,
 } from "../../ipc/types";
 import { generateVersionToken } from "../../utils/versionToken";
 import { v4 as uuidv4 } from "uuid";
@@ -68,6 +69,7 @@ export interface SessionSlice {
   handleGenerationCompleted: (event: GenerationCompletedEvent) => void;
   handleGenerationFailed: (event: GenerationFailedEvent) => void;
   handleGenerationCanceled: (event: GenerationCanceledEvent) => void;
+  handleGenerationCommandFailed: (tabId: string, error: unknown) => void;
 
   // Tags
   toggleTag: (tabId: string, tagId: string) => void;
@@ -101,6 +103,34 @@ function tabHasContent(tab: SessionTab): boolean {
     tab.acceptedOutput !== null ||
     tab.proposedOutput !== null
   );
+}
+
+function isIpcError(error: unknown): error is IpcError {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    "message" in error &&
+    "subsystem" in error
+  );
+}
+
+function generationErrorFromUnknown(error: unknown) {
+  if (isIpcError(error)) {
+    return {
+      message: error.message,
+      cause: error.detail ?? error.message,
+      action: "Try again or modify your input",
+      source: error,
+    };
+  }
+
+  const cause = error instanceof Error ? error.message : "Unknown error";
+  return {
+    message: "Generation could not start",
+    cause,
+    action: "Try again or modify your input",
+  };
 }
 
 /**
@@ -518,6 +548,20 @@ export const createSessionSlice: StateCreator<SessionSlice> = (set, get) => {
             ...tab,
             activeJob: null,
             status: newStatus,
+          };
+        }),
+      }));
+    },
+
+    handleGenerationCommandFailed: (tabId: string, error: unknown) => {
+      set((state) => ({
+        tabs: state.tabs.map((tab) => {
+          if (tab.id !== tabId) return tab;
+          return {
+            ...tab,
+            activeJob: null,
+            status: "error" as TabStatus,
+            error: generationErrorFromUnknown(error),
           };
         }),
       }));

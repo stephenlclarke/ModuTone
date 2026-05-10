@@ -18,6 +18,7 @@ export function GenerateButton({ onOpenSettings }: GenerateButtonProps) {
     state.tabs.find((t) => t.id === state.activeTabId),
   );
   const workerState = useAppStore((state) => state.runtime.workerState);
+  const loadedModelId = useAppStore((state) => state.runtime.loadedModelId);
   const models = useAppStore((state) => state.metadata.models);
   const selectedModelId = useAppStore(
     (state) => state.metadata.settings?.selectedModelId ?? null,
@@ -38,6 +39,7 @@ export function GenerateButton({ onOpenSettings }: GenerateButtonProps) {
       tabId={activeTab.id}
       tabStatus={status}
       workerState={workerState}
+      loadedModelId={loadedModelId}
       models={models}
       selectedModelId={selectedModelId}
       onOpenSettings={onOpenSettings}
@@ -89,6 +91,7 @@ function GenerateActionButton({
   tabId,
   tabStatus,
   workerState,
+  loadedModelId,
   models,
   selectedModelId,
   onOpenSettings,
@@ -96,6 +99,7 @@ function GenerateActionButton({
   tabId: string;
   tabStatus: string;
   workerState: string;
+  loadedModelId: string | null;
   models: { id: string; isInstalled: boolean }[];
   selectedModelId: string | null;
   onOpenSettings: () => void;
@@ -121,10 +125,15 @@ function GenerateActionButton({
   const loadingPhase = useAppStore((state) => state.modelLoading.phase);
 
   const anyInstalled = models.some((m) => m.isInstalled);
+  const isFallbackActive = loadingPhase === "fallback_active";
+  const activeGenerationModelId =
+    loadedModelId && (loadedModelId === selectedModelId || isFallbackActive)
+      ? loadedModelId
+      : null;
 
   // Model readiness checks — only idle means the worker can accept a new job.
   // "busy" means a job is still running (or cancel is in-flight).
-  const modelReady = workerState === "idle";
+  const modelReady = workerState === "idle" && activeGenerationModelId !== null;
   const isWarming = workerState === "warming";
   const isLoadingPhaseActive =
     loadingPhase === "loading" ||
@@ -211,7 +220,7 @@ function GenerateActionButton({
   const requestReGenerate = useAppStore((state) => state.requestReGenerate);
 
   const handleGenerate = useCallback(async () => {
-    if (!enabled) return;
+    if (!enabled || !activeGenerationModelId) return;
 
     // Route Re-Generate through confirmation dialog when output exists
     if (label === "Re-Generate") {
@@ -223,20 +232,20 @@ function GenerateActionButton({
       await generationStartInitial({
         contractVersion: 1,
         tabId,
-        modelId: selectedModelId ?? "default",
+        modelId: activeGenerationModelId,
         profileId: selectedProfileId,
         activeTagIds,
         sourceText: inputText,
         inputVersionToken,
       });
-    } catch {
-      // Error will be surfaced via generation:failed event
+    } catch (err) {
+      useAppStore.getState().handleGenerationCommandFailed(tabId, err);
     }
   }, [
     enabled,
     label,
     tabId,
-    selectedModelId,
+    activeGenerationModelId,
     activeTagIds,
     inputText,
     inputVersionToken,
