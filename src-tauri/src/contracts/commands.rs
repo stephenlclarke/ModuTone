@@ -5,10 +5,29 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use super::errors::IpcError;
 use super::shared::{
     AppState, ModelSuitability, MotionPreference, TagCategory, ThemePreference, VisualStyle,
     WorkerState,
 };
+
+pub const CONTRACT_VERSION: u32 = 1;
+
+pub fn ensure_contract_version(contract_version: u32, subsystem: &str) -> Result<(), IpcError> {
+    if contract_version == CONTRACT_VERSION {
+        return Ok(());
+    }
+
+    Err(IpcError {
+        code: "INVALID_CONTRACT_VERSION".to_string(),
+        message: format!(
+            "Unsupported IPC contract version {}; expected {}",
+            contract_version, CONTRACT_VERSION
+        ),
+        detail: Some(contract_version.to_string()),
+        subsystem: subsystem.to_string(),
+    })
+}
 
 // --- Settings ---
 
@@ -224,6 +243,7 @@ pub struct TagDeleteResponse {
 pub struct ModelEntry {
     pub id: String,
     pub display_name: String,
+    pub backend: String,
     pub size_bytes: u64,
     pub ram_class_label: String,
     pub min_ram_bytes: u64,
@@ -231,6 +251,9 @@ pub struct ModelEntry {
     pub is_cataloged: bool,
     pub suitability: ModelSuitability,
     pub quant_label: Option<String>,
+    pub can_download: bool,
+    pub download_size_bytes: Option<u64>,
+    pub download_unavailable_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -239,6 +262,60 @@ pub struct ModelsListResponse {
     pub models: Vec<ModelEntry>,
     pub system_ram_bytes: u64,
     pub system_vram_bytes: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelDownloadStartRequest {
+    pub contract_version: u32,
+    pub model_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelDownloadStartResponse {
+    pub started: bool,
+    pub already_installed: bool,
+    pub total_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelDownloadCancelRequest {
+    pub contract_version: u32,
+    pub model_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelDownloadCancelResponse {
+    pub canceled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MlxRuntimeStatusResponse {
+    pub supported: bool,
+    pub installed: bool,
+    pub installing: bool,
+    pub install_dir: String,
+    pub python_path: Option<String>,
+    pub unavailable_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MlxRuntimeInstallStartRequest {
+    pub contract_version: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MlxRuntimeInstallStartResponse {
+    pub started: bool,
+    pub already_installed: bool,
+    pub install_dir: String,
+    pub python_path: Option<String>,
 }
 
 // --- Runtime ---
@@ -318,4 +395,23 @@ pub struct SetBooleanRequest {
 pub struct PlatformFeatureResponse {
     pub applied: bool,
     pub supported: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn contract_version_validator_accepts_current_version() {
+        assert!(ensure_contract_version(CONTRACT_VERSION, "test").is_ok());
+    }
+
+    #[test]
+    fn contract_version_validator_rejects_unsupported_version() {
+        let err = ensure_contract_version(CONTRACT_VERSION + 1, "test").unwrap_err();
+
+        assert_eq!(err.code, "INVALID_CONTRACT_VERSION");
+        assert_eq!(err.subsystem, "test");
+        assert!(err.message.contains("Unsupported IPC contract version"));
+    }
 }

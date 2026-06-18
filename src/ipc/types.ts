@@ -3,7 +3,8 @@
 
 // --- Global ---
 
-export type ContractVersion = number; // current: 1
+export const CONTRACT_VERSION = 1 as const;
+export type ContractVersion = typeof CONTRACT_VERSION;
 
 export interface IpcError {
   code: string;
@@ -190,6 +191,7 @@ export interface TagDeleteResponse {
 export interface ModelEntry {
   id: string;
   displayName: string;
+  backend: "gguf" | "mlx";
   sizeBytes: number;
   ramClassLabel: string;
   minRamBytes: number;
@@ -197,6 +199,9 @@ export interface ModelEntry {
   isCataloged: boolean;
   suitability: ModelSuitability;
   quantLabel: string | null;
+  canDownload: boolean;
+  downloadSizeBytes: number | null;
+  downloadUnavailableReason: string | null;
 }
 
 // --- Model Aliases ---
@@ -216,6 +221,46 @@ export interface ModelsListResponse {
   models: ModelEntry[];
   systemRamBytes: number;
   systemVramBytes: number | null;
+}
+
+export interface ModelDownloadStartRequest {
+  contractVersion: ContractVersion;
+  modelId: string;
+}
+
+export interface ModelDownloadStartResponse {
+  started: boolean;
+  alreadyInstalled: boolean;
+  totalBytes: number;
+}
+
+export interface ModelDownloadCancelRequest {
+  contractVersion: ContractVersion;
+  modelId: string;
+}
+
+export interface ModelDownloadCancelResponse {
+  canceled: boolean;
+}
+
+export interface MlxRuntimeStatusResponse {
+  supported: boolean;
+  installed: boolean;
+  installing: boolean;
+  installDir: string;
+  pythonPath: string | null;
+  unavailableReason: string | null;
+}
+
+export interface MlxRuntimeInstallStartRequest {
+  contractVersion: ContractVersion;
+}
+
+export interface MlxRuntimeInstallStartResponse {
+  started: boolean;
+  alreadyInstalled: boolean;
+  installDir: string;
+  pythonPath: string | null;
 }
 
 // --- Runtime ---
@@ -343,4 +388,35 @@ export interface PrivacySupportStatusChangedEvent {
   contractVersion: ContractVersion;
   privacyBlackoutSupported: boolean;
   platform: string;
+}
+
+export type ModelDownloadStatus =
+  | "queued"
+  | "downloading"
+  | "completed"
+  | "failed"
+  | "canceled";
+
+export interface ModelDownloadProgressEvent {
+  contractVersion: ContractVersion;
+  modelId: string;
+  status: ModelDownloadStatus;
+  bytesDownloaded: number;
+  totalBytes: number;
+  fileName?: string;
+  error?: string;
+}
+
+export type MlxRuntimeInstallStatus =
+  | "queued"
+  | "installing"
+  | "completed"
+  | "failed";
+
+export interface MlxRuntimeInstallProgressEvent {
+  contractVersion: ContractVersion;
+  status: MlxRuntimeInstallStatus;
+  step: string;
+  detail?: string;
+  error?: string;
 }

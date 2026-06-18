@@ -2,7 +2,7 @@
 // Metadata slice — settings, profiles, tags, models (cached from backend)
 
 import type { StateCreator } from "zustand";
-import type { MetadataState } from "./types";
+import type { MetadataState, MlxRuntimeState } from "./types";
 import type {
   MotionPreference,
   TagCategory,
@@ -22,15 +22,58 @@ import {
   profilesDelete,
   profilesResetToDefault,
   modelsList,
+  modelDownloadStart,
+  modelDownloadCancel,
+  mlxRuntimeStatus,
+  mlxRuntimeInstallStart,
   modelAliasSet,
   modelAliasClear,
 } from "../../ipc/commands";
-import type { ProfileEntry } from "../../ipc/types";
+import type {
+  ModelDownloadProgressEvent,
+  MlxRuntimeInstallProgressEvent,
+  MlxRuntimeStatusResponse,
+  ProfileEntry,
+} from "../../ipc/types";
 
 /** Resolve the factory default profile ID from the profiles list by its flag. */
 function getFactoryDefaultId(profiles: ProfileEntry[]): string {
   const factoryDefault = profiles.find((p) => p.isFactoryDefault);
   return factoryDefault ? factoryDefault.id : "factory-default";
+}
+
+function emptyMlxRuntimeState(): MlxRuntimeState {
+  return {
+    supported: false,
+    installed: false,
+    installing: false,
+    installDir: null,
+    pythonPath: null,
+    unavailableReason: null,
+    status: "idle" as const,
+    step: null,
+    detail: null,
+    error: null,
+  };
+}
+
+function mergeMlxRuntimeState(
+  previous: MlxRuntimeState | null,
+  response: MlxRuntimeStatusResponse,
+): MlxRuntimeState {
+  return {
+    ...(previous ?? emptyMlxRuntimeState()),
+    supported: response.supported,
+    installed: response.installed,
+    installing: response.installing,
+    installDir: response.installDir,
+    pythonPath: response.pythonPath,
+    unavailableReason: response.unavailableReason,
+    status: response.installed
+      ? ("completed" as const)
+      : (previous?.status ?? "idle"),
+    error: response.installed ? null : (previous?.error ?? null),
+  };
 }
 
 export interface MetadataSlice {
@@ -67,6 +110,16 @@ export interface MetadataSlice {
   setModelAlias: (modelId: string, alias: string) => Promise<void>;
   clearModelAlias: (modelId: string) => Promise<void>;
 
+  // Model Downloads
+  startModelDownload: (modelId: string) => Promise<void>;
+  cancelModelDownload: (modelId: string) => Promise<void>;
+  handleModelDownloadProgress: (event: ModelDownloadProgressEvent) => void;
+
+  // Apple Silicon MLX runtime setup
+  refreshMlxRuntime: () => Promise<void>;
+  installMlxRuntime: () => Promise<void>;
+  handleMlxRuntimeProgress: (event: MlxRuntimeInstallProgressEvent) => void;
+
   // Tag CRUD
   createTag: (
     name: string,
@@ -87,6 +140,8 @@ export const createMetadataSlice: StateCreator<MetadataSlice> = (set, get) => ({
     builtInTags: [],
     customTags: [],
     models: [],
+    modelDownloads: {},
+    mlxRuntime: null,
     systemRamBytes: null,
     loadStatus: "idle",
   },
@@ -96,13 +151,19 @@ export const createMetadataSlice: StateCreator<MetadataSlice> = (set, get) => ({
       metadata: { ...state.metadata, loadStatus: "loading" },
     }));
     try {
-      const [settings, tagsResponse, profilesResponse, modelsResponse] =
-        await Promise.all([
-          settingsGet(),
-          tagsList(),
-          profilesList(),
-          modelsList(),
-        ]);
+      const [
+        settings,
+        tagsResponse,
+        profilesResponse,
+        modelsResponse,
+        mlxRuntimeResponse,
+      ] = await Promise.all([
+        settingsGet(),
+        tagsList(),
+        profilesList(),
+        modelsList(),
+        mlxRuntimeStatus(),
+      ]);
       set({
         metadata: {
           settings,
@@ -110,6 +171,11 @@ export const createMetadataSlice: StateCreator<MetadataSlice> = (set, get) => ({
           customTags: tagsResponse.customTags,
           profiles: profilesResponse.profiles,
           models: modelsResponse.models,
+          modelDownloads: get().metadata.modelDownloads,
+          mlxRuntime: mergeMlxRuntimeState(
+            get().metadata.mlxRuntime,
+            mlxRuntimeResponse,
+          ),
           systemRamBytes: modelsResponse.systemRamBytes,
           loadStatus: "loaded",
         },
@@ -230,6 +296,161 @@ export const createMetadataSlice: StateCreator<MetadataSlice> = (set, get) => ({
     set((state) => ({
       metadata: { ...state.metadata, settings },
     }));
+  },
+
+  // --- Model Downloads ---
+
+  startModelDownload: async (modelId) => {
+    set((state) => ({
+      metadata: {
+        ...state.metadata,
+        modelDownloads: {
+          ...state.metadata.modelDownloads,
+          [modelId]: {
+            status: "queued",
+            bytesDownloaded: 0,
+            totalBytes:
+              state.metadata.models.find((model) => model.id === modelId)
+                ?.downloadSizeBytes ?? 0,
+            fileName: null,
+            error: null,
+          },
+        },
+      },
+    }));
+
+    try {
+      const response = await modelDownloadStart({
+        contractVersion: 1,
+        modelId,
+      });
+      if (response.alreadyInstalled) {
+        await get().loadMetadata();
+      }
+    } catch (error) {
+      const detail =
+        error && typeof error === "object" && "message" in error
+          ? String((error as { message?: unknown }).message)
+          : "Failed to start model download";
+      set((state) => ({
+        metadata: {
+          ...state.metadata,
+          modelDownloads: {
+            ...state.metadata.modelDownloads,
+            [modelId]: {
+              status: "failed",
+              bytesDownloaded: 0,
+              totalBytes:
+                state.metadata.models.find((model) => model.id === modelId)
+                  ?.downloadSizeBytes ?? 0,
+              fileName: null,
+              error: detail,
+            },
+          },
+        },
+      }));
+    }
+  },
+
+  cancelModelDownload: async (modelId) => {
+    await modelDownloadCancel({ contractVersion: 1, modelId });
+  },
+
+  handleModelDownloadProgress: (event) => {
+    set((state) => ({
+      metadata: {
+        ...state.metadata,
+        modelDownloads: {
+          ...state.metadata.modelDownloads,
+          [event.modelId]: {
+            status: event.status,
+            bytesDownloaded: event.bytesDownloaded,
+            totalBytes: event.totalBytes,
+            fileName: event.fileName ?? null,
+            error: event.error ?? null,
+          },
+        },
+      },
+    }));
+
+    if (event.status === "completed") {
+      void get().loadMetadata();
+    }
+  },
+
+  // --- Apple Silicon MLX Runtime ---
+
+  refreshMlxRuntime: async () => {
+    const response = await mlxRuntimeStatus();
+    set((state) => ({
+      metadata: {
+        ...state.metadata,
+        mlxRuntime: mergeMlxRuntimeState(state.metadata.mlxRuntime, response),
+      },
+    }));
+  },
+
+  installMlxRuntime: async () => {
+    set((state) => ({
+      metadata: {
+        ...state.metadata,
+        mlxRuntime: {
+          ...(state.metadata.mlxRuntime ?? emptyMlxRuntimeState()),
+          installing: true,
+          status: "queued",
+          step: "queued",
+          detail: "Preparing MLX runtime setup",
+          error: null,
+        },
+      },
+    }));
+
+    try {
+      const response = await mlxRuntimeInstallStart({ contractVersion: 1 });
+      if (response.alreadyInstalled) {
+        await get().refreshMlxRuntime();
+      }
+    } catch (error) {
+      const detail =
+        error && typeof error === "object" && "message" in error
+          ? String((error as { message?: unknown }).message)
+          : "Failed to start MLX runtime setup";
+      set((state) => ({
+        metadata: {
+          ...state.metadata,
+          mlxRuntime: {
+            ...(state.metadata.mlxRuntime ?? emptyMlxRuntimeState()),
+            installing: false,
+            status: "failed",
+            step: "failed",
+            detail: null,
+            error: detail,
+          },
+        },
+      }));
+    }
+  },
+
+  handleMlxRuntimeProgress: (event) => {
+    set((state) => ({
+      metadata: {
+        ...state.metadata,
+        mlxRuntime: {
+          ...(state.metadata.mlxRuntime ?? emptyMlxRuntimeState()),
+          installed: event.status === "completed",
+          installing:
+            event.status === "queued" || event.status === "installing",
+          status: event.status,
+          step: event.step,
+          detail: event.detail ?? null,
+          error: event.error ?? null,
+        },
+      },
+    }));
+
+    if (event.status === "completed") {
+      void get().refreshMlxRuntime();
+    }
   },
 
   // --- Tag CRUD ---

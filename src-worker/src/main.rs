@@ -23,9 +23,10 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use adapter::llama_cpp::LlamaCppAdapter;
+use adapter::mlx::MlxAdapter;
 use adapter::ModelAdapter;
 use cancellation::CancellationToken;
-use protocol::{InboundMessage, OutboundMessage};
+use protocol::{InboundMessage, ModelBackend, OutboundMessage};
 
 /// Events processed by the main thread event loop.
 enum WorkerEvent {
@@ -81,6 +82,7 @@ fn main() {
 
                 InboundMessage::LoadModel {
                     model_id,
+                    backend,
                     model_path,
                 } => {
                     // Load model synchronously on main thread.
@@ -100,10 +102,17 @@ fn main() {
                     // backend hasn't been freed yet.
                     drop(loaded_model.take());
 
-                    match LlamaCppAdapter::load(&model_path, &model_id) {
+                    let adapter_result: Result<Arc<dyn ModelAdapter>, String> = match backend {
+                        ModelBackend::Gguf => LlamaCppAdapter::load(&model_path, &model_id)
+                            .map(|adapter| Arc::new(adapter) as Arc<dyn ModelAdapter>),
+                        ModelBackend::Mlx => MlxAdapter::load(&model_path, &model_id)
+                            .map(|adapter| Arc::new(adapter) as Arc<dyn ModelAdapter>),
+                    };
+
+                    match adapter_result {
                         Ok(adapter) => {
                             let load_time_ms = start.elapsed().as_millis() as u64;
-                            loaded_model = Some(Arc::new(adapter));
+                            loaded_model = Some(adapter);
                             send_message(
                                 &stdout,
                                 &OutboundMessage::ModelLoaded {

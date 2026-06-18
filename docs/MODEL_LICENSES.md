@@ -1,70 +1,104 @@
 # Model and Dependency Licenses
 
-ModuTone involves three categories of licensing: the application source code, third-party dependencies, and bundled model weights.
+ModuTone has separate licensing concerns for application source, third-party
+dependencies, and model weights.
 
 ## Application Source Code
 
-**License:** [PolyForm Noncommercial 1.0.0](../LICENSE)
+License: [PolyForm Noncommercial 1.0.0](../LICENSE)
 
-The ModuTone application source code is source-available under the [PolyForm Noncommercial License 1.0.0](../LICENSE). You may view, use, modify, and share the source code for any noncommercial purpose. Commercial use requires separate permission from the author. This covers all code, configuration, and documentation in the repository. It does not cover bundled model weights, which are licensed separately (see below).
+The application source code, configuration, and documentation are available for
+noncommercial use. Commercial use requires separate permission from the author.
 
-## Bundled Model Weights
+This license does not cover model weights.
 
-ModuTone bundles quantized GGUF files derived from the Qwen 2.5 model family by Alibaba Cloud.
+## Model Weights
 
-| Model | Original | Quantization | License |
-|-------|----------|-------------|---------|
-| Qwen 2.5 3B Instruct | [Qwen/Qwen2.5-3B-Instruct](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct) | Q5_K_M | Apache 2.0 |
-| Qwen 2.5 14B Instruct | [Qwen/Qwen2.5-14B-Instruct](https://huggingface.co/Qwen/Qwen2.5-14B-Instruct) | Q5_K_M | Apache 2.0 |
+Release packages may bundle quantized GGUF files derived from Alibaba Cloud's
+Qwen 2.5 model family. Apple Silicon local builds can also use the optional
+GPT-OSS 20B TurboQuant MLX model directory documented in
+[Apple Silicon MLX Setup](APPLE_SILICON.md).
 
-The Qwen 2.5 models are released by Alibaba Cloud under the **Apache License 2.0**. The full license text is available at:
-https://www.apache.org/licenses/LICENSE-2.0
+| Model | Quantization | License |
+| --- | --- | --- |
+| Qwen 2.5 3B Instruct | Q5_K_M | Apache 2.0 |
+| Qwen 2.5 14B Instruct | Q5_K_M | Apache 2.0 |
+| GPT-OSS 20B TurboQuant 3-bit | MLX TurboQuant 3-bit | Apache 2.0 |
 
-Quantization to GGUF format does not change the license terms. The quantized files are derivative works under the same Apache 2.0 license.
+Upstream model repositories:
 
-## Third-Party Dependencies
+- Qwen/Qwen2.5-3B-Instruct
+- Qwen/Qwen2.5-14B-Instruct
+- Qwen/Qwen2.5-3B-Instruct-GGUF
+- Qwen/Qwen2.5-14B-Instruct-GGUF
+- manjunathshiva/gpt-oss-20b-tq3
+- openai/gpt-oss-20b
 
-### Rust Dependencies (Notable)
+The Qwen 2.5 models are released by Alibaba Cloud under Apache License 2.0.
+Quantization to GGUF format does not change the upstream license terms.
+The GPT-OSS 20B TurboQuant model is derived from OpenAI's `gpt-oss-20b` and
+published on Hugging Face under Apache License 2.0.
+
+The source repository tracks the model catalog but not the large model files.
+The app can download approved catalog models from Hugging Face, or builders can
+provide valid model files before creating release packages.
+
+## Rust Dependencies
+
+Notable Rust dependencies:
 
 | Crate | License | Purpose |
-|-------|---------|---------|
-| tauri | MIT OR Apache-2.0 | Desktop application framework |
-| llama-cpp-2 | MIT | Rust bindings for llama.cpp |
+| --- | --- | --- |
+| tauri | MIT or Apache-2.0 | Desktop framework |
+| tauri-plugin-shell | MIT or Apache-2.0 | Shell plugin |
+| llama-cpp-2 | MIT | llama.cpp Rust bindings |
 | tokio | MIT | Async runtime |
-| serde | MIT OR Apache-2.0 | Serialization |
-| log4rs | MIT OR Apache-2.0 | Logging |
+| serde | MIT or Apache-2.0 | Serialization |
+| serde_json | MIT or Apache-2.0 | JSON serialization |
+| log | MIT or Apache-2.0 | Logging facade |
+| log4rs | MIT or Apache-2.0 | File logging |
+| reqwest | MIT or Apache-2.0 | Explicit model downloads |
 | sysinfo | MIT | System information |
-| chrono | MIT OR Apache-2.0 | Date/time |
-| uuid | MIT OR Apache-2.0 | ID generation |
+| chrono | MIT or Apache-2.0 | Date and time |
+| uuid | MIT or Apache-2.0 | ID generation |
 
-### JavaScript Dependencies (Notable)
+## JavaScript Dependencies
+
+Notable JavaScript dependencies:
 
 | Package | License | Purpose |
-|---------|---------|---------|
+| --- | --- | --- |
 | react | MIT | UI library |
+| react-dom | MIT | React DOM renderer |
 | zustand | MIT | State management |
 | vite | MIT | Build tool |
 | vitest | MIT | Test runner |
 | typescript | Apache-2.0 | Type system |
-| eslint | MIT | Linter |
-| prettier | MIT | Formatter |
-| @tauri-apps/api | MIT OR Apache-2.0 | Tauri IPC client |
+| eslint | MIT | Linting |
+| prettier | MIT | Formatting |
+| @tauri-apps/api | MIT or Apache-2.0 | Tauri IPC client |
+| @tauri-apps/cli | MIT or Apache-2.0 | Tauri CLI |
 | @playwright/test | Apache-2.0 | E2E testing |
 
-### Native Libraries
+## Native Libraries
 
 | Library | License | Purpose |
-|---------|---------|---------|
-| llama.cpp | MIT | LLM inference engine (compiled into worker via llama-cpp-2) |
+| --- | --- | --- |
+| llama.cpp | MIT | Local model inference |
+| MLX | MIT | Apple Silicon local model inference |
+| mlx-lm | MIT | Apple Silicon model loading and generation |
+| turboquant-mlx-full | Apache 2.0 | TurboQuant MLX runtime support |
 
-Full dependency trees are available via `cargo tree` (Rust) and `npm ls` (JavaScript). The `Cargo.lock` and `package-lock.json` files pin exact versions for reproducibility.
+Exact dependency versions are pinned in:
 
-## Build Tool Requirements (Not Bundled)
+- `Cargo.lock`
+- `package-lock.json`
 
-The following tools are required for building the Windows installer but are **not included** in the repository:
+## Build Tools Not Bundled
 
 | Tool | License | Purpose |
-|------|---------|---------|
-| 7-Zip | LGPL-2.1 | Archive creation for SFX installer |
+| --- | --- | --- |
+| 7-Zip | LGPL-2.1 | SFX archive creation and extraction |
 
-These must be installed separately by the builder.
+7-Zip and optional extractor binaries are required only for Windows release
+packaging. They are not committed to the repository.

@@ -213,6 +213,21 @@ describe("modelLoadingSlice", () => {
     expect(store.getState().modelLoading.phase).toBe("failed");
   });
 
+  it("immediately fails on runtime_missing error (no retries)", () => {
+    store.getState().initiateModelLoad("model-a");
+
+    store.getState().handleModelLoadEvent({
+      loadedModelId: null,
+      workerState: "idle",
+      loadErrorClass: "runtime_missing",
+    });
+
+    expect(store.getState().modelLoading.phase).toBe("failed");
+    expect(store.getState().modelLoading.lastError?.message).toContain(
+      "Required model runtime is missing",
+    );
+  });
+
   it("immediately fails on MODEL_NOT_FOUND IPC error (model_invalid)", () => {
     store.getState().initiateModelLoad("model-a");
 

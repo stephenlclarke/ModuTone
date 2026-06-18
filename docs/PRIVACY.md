@@ -1,76 +1,120 @@
 # Privacy
 
-ModuTone is designed around privacy as an architectural constraint. This document describes what data is handled, where it goes, and what guarantees the system provides.
+ModuTone is designed around local-only processing and content ephemerality.
+This document describes what data is handled and where it goes.
 
 ## Core Guarantees
 
-### No content persistence
+### No Content Persistence
 
-User input, generated output, and refinement instructions exist only in process memory during an active session. When a tab is closed or the application exits, this content is gone permanently. There is no undo, no recovery, no "recently used" feature. This is by design.
+User input, generated output, prompts, and refinement instructions exist only in
+process memory during an active session. Closing a tab or exiting the app
+destroys that content.
 
-### No network activity
+There is no session recovery feature by design.
 
-ModuTone makes zero outbound network requests. All inference runs locally via bundled model weights loaded from disk into the worker process. The application functions identically with no network connection (air-gapped operation).
+### No Automatic Content Network Activity
 
-### No telemetry
+Inference runs locally with downloaded model files loaded by the worker
+process. The app does not send writing content to remote APIs, telemetry, or
+analytics services.
 
-There are no analytics, crash reporters, usage trackers, or phone-home mechanisms. No data about usage patterns, feature adoption, or errors is collected or transmitted.
+Model downloads are explicit user actions from Settings. When a user starts a
+download, ModuTone contacts Hugging Face only to retrieve model files and writes
+them to the app data models directory.
 
-### Log redaction
+Apple Silicon MLX runtime setup is also an explicit Settings action. When a
+user starts runtime setup, ModuTone uses Python package tooling to retrieve MLX
+runtime packages from package indexes. Writing content is not sent with those
+requests.
 
-The structured logging system (log4rs) automatically redacts content. Log messages contain only operational metadata:
+### No Telemetry
 
-- Timestamps
-- Model IDs and load times
-- Job IDs and durations
-- Error codes and subsystems
-- Process lifecycle events
+ModuTone has no analytics SDK, crash reporter, usage tracker, or phone-home
+mechanism.
 
-Log messages never contain: user input text, generated output, refinement instructions, prompt templates, or model responses.
+### Log Redaction
 
-Privacy regression tests in both TypeScript and Rust verify these invariants.
+Logs contain operational metadata only:
+
+- Timestamps.
+- Model IDs and load times.
+- Job IDs and durations.
+- Error codes and subsystems.
+- Process lifecycle events.
+
+Logs must not contain:
+
+- User input.
+- Generated output.
+- Refinement instructions.
+- Prompt bodies.
+- Model responses.
+
+Privacy regression tests in TypeScript and Rust enforce these invariants.
 
 ## Data on Disk
 
-The only data ModuTone writes to disk:
+The app writes only operational metadata.
 
-| Data | Location | Contains |
-|------|----------|----------|
-| Settings | `$APPDATA/com.modutone.desktop` | Theme preference, model alias, visual style, motion preference |
-| Profiles | `$APPDATA/com.modutone.desktop` | Named tag + parameter configurations (user-created labels, not content) |
-| Custom tags | `$APPDATA/com.modutone.desktop` | Tag names and categories (user-created labels, not content) |
-| Application logs | `$APPDATA/com.modutone.desktop/logs` | Operational metadata only (redacted) |
+| Data | Contains |
+| --- | --- |
+| Settings | Theme, model alias, visual style, motion preference |
+| Profiles | User-created names and configuration |
+| Custom tags | User-created tag labels and categories |
+| Models | User-downloaded model weights and catalog metadata |
+| MLX runtime | Optional Python environment and packages for Apple Silicon |
+| Logs | Redacted operational metadata |
 
-None of these contain user-authored text or model-generated content.
+Default app data locations:
+
+| Platform | Location |
+| --- | --- |
+| Windows | `%APPDATA%\com.modutone.desktop\` |
+| macOS | `~/Library/Application Support/com.modutone.desktop/` |
+| Linux | `$XDG_DATA_HOME/com.modutone.desktop/` |
+
+If `XDG_DATA_HOME` is not set, Linux typically uses:
+
+```text
+~/.local/share/com.modutone.desktop/
+```
 
 ## Content Lifecycle
 
-```
-User types input
-    ↓
-Stored in Zustand session slice (memory only)
-    ↓
-Sent to backend via IPC command
-    ↓
-Backend constructs prompt, sends to worker via stdin
-    ↓
-Worker loads model, runs inference, streams output via stdout
-    ↓
-Backend relays tokens to frontend via events
-    ↓
-Frontend displays in UI (memory only)
-    ↓
-User closes tab or app → content destroyed
+```text
+User enters text
+  -> frontend session state in memory
+  -> Tauri IPC command
+  -> backend prompt construction in memory
+  -> worker stdin message
+  -> local model inference
+  -> worker stdout events
+  -> frontend display state in memory
+  -> tab close or app exit destroys content
 ```
 
-At no point in this pipeline is content written to disk, logged, or transmitted over a network.
+At no point in this lifecycle is writing content written to disk, logged, or
+sent over the network.
 
 ## Privacy Blackout Mode
 
-ModuTone supports a privacy blackout mode that requests the OS to exclude the application window from screen capture, screen sharing, and screenshots. This uses platform-native APIs where available (e.g., `SetWindowDisplayAffinity` on Windows).
+Privacy blackout requests OS-level window capture protection where meaningful
+platform support exists.
+
+Current behavior:
+
+- Windows: capability is probed and reported when available.
+- macOS: capability is probed and reported when available.
+- Linux: reported as unsupported.
+
+This feature is best effort. It is not a replacement for controlling what is
+shared in a screen sharing session.
 
 ## Uninstall Behavior
 
-The NSIS uninstaller prompts the user: "Do you want to remove your ModuTone user data?" The default is No, preserving settings and profiles. If the user selects Yes, the app data directory is removed.
+The Windows uninstaller removes bundled model files from the install directory.
+It then prompts before removing user data and defaults to keeping it.
 
-Bundled model files in the installation directory are always removed during uninstall.
+User data contains settings, profiles, custom tags, and redacted logs. It does
+not contain writing content or generated output.

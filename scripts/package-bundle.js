@@ -1,7 +1,7 @@
 // Assemble the ModuTone distribution bundle.
 //
 // Creates a distribution folder containing:
-//   ModuTone_1.0.0_x64-setup.exe  — NSIS installer (app + worker + catalog)
+//   ModuTone_1.1.0_x64-setup.exe  — NSIS installer (app + worker + catalog)
 //   models/                       — GGUF model files copied at install time
 //
 // The NSIS installer's POSTINSTALL hook copies models/*.gguf from the
@@ -52,6 +52,31 @@ if (!existsSync(installerPath)) {
 // Read catalog for model validation
 const catalog = JSON.parse(readFileSync(catalogPath, "utf-8"));
 
+function entryStoragePaths(entry) {
+  if (Array.isArray(entry.files) && entry.files.length > 0) {
+    return entry.files;
+  }
+  const storagePath = entry.filename ?? entry.path;
+  return storagePath ? [storagePath] : [];
+}
+
+function catalogEntryForFile(filename) {
+  return catalog.find((entry) => entryStoragePaths(entry).includes(filename));
+}
+
+function catalogEntryComplete(entry) {
+  const files = entryStoragePaths(entry);
+  const actualSize = files.reduce((total, filename) => {
+    const path = join(modelsDir, filename);
+    return existsSync(path) ? total + statSync(path).size : total;
+  }, 0);
+  return (
+    files.length > 0 &&
+    files.every((filename) => existsSync(join(modelsDir, filename))) &&
+    actualSize >= Math.floor(entry.sizeBytes * INSTALLED_SIZE_THRESHOLD)
+  );
+}
+
 // Find valid GGUF files
 const ggufFiles = readdirSync(modelsDir)
   .filter((f) => f.toLowerCase().endsWith(".gguf"))
@@ -61,10 +86,16 @@ const ggufFiles = readdirSync(modelsDir)
     size: statSync(join(modelsDir, f)).size,
   }))
   .filter((file) => {
-    const entry = catalog.find((e) => e.filename === file.filename);
+    const entry = catalogEntryForFile(file.filename);
     if (!entry) return file.size > 0; // uncataloged: include if non-empty
-    return file.size >= Math.floor(entry.sizeBytes * INSTALLED_SIZE_THRESHOLD);
+    return catalogEntryComplete(entry);
   });
+
+if (ggufFiles.length === 0) {
+  console.error(`ERROR: No valid GGUF model files found in ${modelsDir}`);
+  console.error("Packaging requires at least one valid model file.");
+  process.exit(1);
+}
 
 // Create distribution folder
 const bundleName = `ModuTone-${version}-windows-x64`;
@@ -79,7 +110,9 @@ copyFileSync(installerPath, join(bundleDir, installerName));
 
 // Copy valid model files
 for (const file of ggufFiles) {
-  console.log(`Copying model: ${file.filename} (${(file.size / 1e9).toFixed(2)} GB)`);
+  console.log(
+    `Copying model: ${file.filename} (${(file.size / 1e9).toFixed(2)} GB)`,
+  );
   copyFileSync(file.path, join(bundleModelsDir, file.filename));
 }
 
@@ -91,7 +124,9 @@ const totalSize = installerSize + totalModelSize;
 console.log();
 console.log(`Distribution bundle created: ${bundleDir}`);
 console.log(`  Installer: ${(installerSize / 1e6).toFixed(1)} MB`);
-console.log(`  Models:    ${ggufFiles.length} file(s), ${(totalModelSize / 1e9).toFixed(2)} GB`);
+console.log(
+  `  Models:    ${ggufFiles.length} file(s), ${(totalModelSize / 1e9).toFixed(2)} GB`,
+);
 console.log(`  Total:     ${(totalSize / 1e9).toFixed(2)} GB`);
 console.log();
 console.log("Contents:");

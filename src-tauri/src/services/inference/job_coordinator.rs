@@ -714,7 +714,7 @@ mod tests {
             "Model is not loaded"
         );
         assert_eq!(
-            classify_worker_error("Failed to load model from '/path': io error"),
+            classify_worker_error("Failed to load model 'qwen': io error"),
             "Model failed to load"
         );
         assert_eq!(

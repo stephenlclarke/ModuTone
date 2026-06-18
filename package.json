@@ -1,13 +1,15 @@
 {
   "name": "modutone",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev:frontend": "vite",
     "build:frontend": "tsc -b && vite build",
     "build:sidecar": "cargo build --release -p modutone-worker && node scripts/copy-sidecar.js",
     "build:sidecar:dev": "cargo build -p modutone-worker && node scripts/copy-sidecar.js --debug",
+    "test:rust": "npm run build:sidecar:dev && cargo test --workspace",
+    "lint:rust": "npm run build:sidecar:dev && cargo clippy --workspace -- -D warnings",
     "prepare:models": "node scripts/prepare-models.js",
     "dev": "tauri dev",
     "build": "tauri build",

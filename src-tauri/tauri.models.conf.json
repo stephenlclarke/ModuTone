@@ -3,7 +3,8 @@
   "bundle": {
     "resources": {
       "resources/models/model_catalog.json": "models/model_catalog.json",
-      "resources/models/*.gguf": "models/"
+      "resources/models/*.gguf": "models/",
+      "resources/models/*": "models/"
     }
   }
 }

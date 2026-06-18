@@ -296,7 +296,18 @@ export function AppShell() {
     if (!tab) return;
 
     const settings = state.metadata.settings;
-    const selectedModelId = settings?.selectedModelId ?? "default";
+    const loadedModelId = state.runtime.loadedModelId;
+    if (!loadedModelId) {
+      confirmReGenerate();
+      useAppStore.getState().handleGenerationCommandFailed(tabId, {
+        code: "MODEL_NOT_READY",
+        message:
+          "No model is loaded. Select and warm a model before generating.",
+        subsystem: "inference",
+      });
+      return;
+    }
+
     const selectedProfileId =
       settings?.lastSelectedProfileId ??
       state.metadata.profiles.find((p) => p.isFactoryDefault)?.id ??
@@ -308,14 +319,14 @@ export function AppShell() {
       await generationStartInitial({
         contractVersion: 1,
         tabId,
-        modelId: selectedModelId,
+        modelId: loadedModelId,
         profileId: selectedProfileId,
         activeTagIds: tab.activeTagIds,
         sourceText: tab.inputText,
         inputVersionToken: tab.inputVersionToken,
       });
-    } catch {
-      // Error will be surfaced via generation:failed event
+    } catch (err) {
+      useAppStore.getState().handleGenerationCommandFailed(tabId, err);
     }
   }, [confirmReGenerate]);
 

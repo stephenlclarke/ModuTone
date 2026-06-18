@@ -1,27 +1,39 @@
 # Roadmap
 
-ModuTone v1.0.0 is feature-complete for its intended scope: local, private writing refinement on Windows.
+ModuTone v1.1.0 is feature-complete for its initial scope: local, private
+writing refinement with in-app model downloads.
 
-The following are possible future work items, not commitments. Priorities may shift based on community interest and feasibility.
+The items below are possible future work, not commitments.
 
-## Possible Future Work
+## Platform Verification
 
-### Platform verification
-- **macOS testing and verification** — Build configurations exist (DMG bundle). Needs testing on Apple Silicon and Intel Macs.
-- **Linux testing and verification** — Build configurations exist (AppImage, deb). Needs testing across distributions.
+- Verify macOS DMG installation on Apple Silicon and Intel hardware.
+- Verify Linux AppImage and deb installation across common distributions.
+- Add release-device smoke checks for bundled model discovery.
 
-### Model support
-- **Additional model families** — Evaluate other open-weight models beyond Qwen 2.5 for writing refinement quality.
-- **Model download from within the app** — Currently models are bundled with the installer. An in-app download mechanism could allow users to add models after installation.
+## Model Support
 
-### Writing features
-- **Export options** — Copy-to-clipboard is available; file export (plain text, Markdown) could be added.
-- **Session history** — Optional, opt-in session history with local-only storage. Would need careful privacy design since ephemerality is a core principle.
-- **Diff view** — Side-by-side or inline diff between accepted and proposed output.
+- Evaluate additional open-weight model families for writing refinement.
+- Add an opt-in local model import flow.
+- Add checksum verification for in-app model downloads.
 
-### Performance
-- **GPU acceleration** — llama.cpp supports CUDA, Metal, and Vulkan backends. Currently uses CPU-only inference. GPU support would significantly improve generation speed.
-- **Concurrent model loading** — Pre-warm a second model while the first is active.
+## Writing Features
 
-### Developer experience
-- **Automated E2E test suite expansion** — Current E2E coverage is a smoke test. Broader workflow coverage would improve confidence for cross-platform releases.
+- Add export options for plain text and Markdown.
+- Add an optional local-only session history mode.
+- Add side-by-side or inline diff review.
+
+Session history would require careful privacy design because ephemerality is a
+core product principle.
+
+## Performance
+
+- Evaluate llama.cpp GPU backends such as CUDA, Metal, and Vulkan.
+- Explore pre-warming a second model while another model is active.
+- Add performance benchmarks for model load and generation latency.
+
+## Developer Experience
+
+- Expand E2E coverage beyond the current smoke test.
+- Add package verification scripts for generated release artifacts.
+- Add automated checks for bundled model catalog consistency.

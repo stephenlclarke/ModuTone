@@ -8,13 +8,16 @@ pub mod domain;
 pub mod infrastructure;
 pub mod services;
 
-use commands::{generation, models, platform, profiles, runtime, settings, tags};
+use commands::{generation, mlx_runtime, models, platform, profiles, runtime, settings, tags};
 use services::diagnostics::init_logger;
 use services::inference::job_coordinator::JobCoordinator;
+use services::inference::mlx_runtime::MlxRuntimeManager;
 use services::inference::model_catalog::ModelRegistry;
+use services::inference::model_downloader::ModelDownloadManager;
 use services::inference::worker_supervisor::{resolve_worker_binary_path, WorkerSupervisor};
 use services::persistence::metadata_store::MetadataStore;
 use services::platform::window_privacy::PlatformCapabilities;
+use std::sync::{Arc, Mutex};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -37,9 +40,22 @@ pub fn run() {
                 .map_err(|e| format!("Failed to initialize metadata store: {}", e))?;
             app.manage(store);
 
+            let resource_dir = match app.path().resource_dir() {
+                Ok(path) => Some(path),
+                Err(e) => {
+                    log::warn!(
+                        "Resource directory resolution failed: {}. Bundled models may be unavailable.",
+                        e
+                    );
+                    None
+                }
+            };
+
             // Initialize model registry (discovers available GGUF models)
-            let model_registry = ModelRegistry::init(&data_dir);
-            app.manage(model_registry);
+            let model_registry = ModelRegistry::init(&data_dir, resource_dir.as_deref());
+            app.manage(Arc::new(Mutex::new(model_registry)));
+            app.manage(ModelDownloadManager::new());
+            app.manage(MlxRuntimeManager::new(&data_dir));
 
             // Initialize worker supervisor and job coordinator
             let worker_path = resolve_worker_binary_path().unwrap_or_else(|e| {
@@ -85,6 +101,10 @@ pub fn run() {
             tags::tags_update,
             tags::tags_delete,
             models::models_list,
+            models::model_download_start,
+            models::model_download_cancel,
+            mlx_runtime::mlx_runtime_status,
+            mlx_runtime::mlx_runtime_install_start,
             runtime::runtime_get_status,
             runtime::runtime_warm_model,
             generation::generation_start_initial,

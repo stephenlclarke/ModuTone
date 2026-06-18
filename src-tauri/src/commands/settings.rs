@@ -3,8 +3,8 @@
 use tauri::State;
 
 use crate::contracts::commands::{
-    ModelAliasClearRequest, ModelAliasSetRequest, SettingsGetResponse, SettingsUpdateRequest,
-    SettingsUpdateResponse,
+    ensure_contract_version, ModelAliasClearRequest, ModelAliasSetRequest, SettingsGetResponse,
+    SettingsUpdateRequest, SettingsUpdateResponse,
 };
 use crate::contracts::errors::IpcError;
 use crate::services::persistence::metadata_store::MetadataStore;
@@ -21,6 +21,7 @@ pub async fn settings_update(
     request: SettingsUpdateRequest,
     store: State<'_, MetadataStore>,
 ) -> Result<SettingsUpdateResponse, IpcError> {
+    ensure_contract_version(request.contract_version, "settings")?;
     store.update_settings(&request)?;
     Ok(SettingsUpdateResponse { updated: true })
 }
@@ -30,6 +31,7 @@ pub async fn model_alias_set(
     request: ModelAliasSetRequest,
     store: State<'_, MetadataStore>,
 ) -> Result<SettingsUpdateResponse, IpcError> {
+    ensure_contract_version(request.contract_version, "settings")?;
     store.set_model_alias(&request.model_id, &request.alias)?;
     Ok(SettingsUpdateResponse { updated: true })
 }
@@ -39,6 +41,7 @@ pub async fn model_alias_clear(
     request: ModelAliasClearRequest,
     store: State<'_, MetadataStore>,
 ) -> Result<SettingsUpdateResponse, IpcError> {
+    ensure_contract_version(request.contract_version, "settings")?;
     store.clear_model_alias(&request.model_id)?;
     Ok(SettingsUpdateResponse { updated: true })
 }

@@ -1,48 +1,150 @@
 # Installation
 
-## Windows (Recommended)
+Use the release package for your operating system. These packages install the
+app only; model files are downloaded from Settings after first launch.
 
-### Download
+## Windows
 
-Download both files from the [latest release](../releases/v1.0.0/):
+Required release file:
 
-- `ModuTone-Setup.exe` — Self-extracting installer launcher
-- `ModuTone-Setup.7z` — Companion archive containing the NSIS installer and model files
+- `ModuTone_1.1.0_x64-setup.exe`
 
-### Install
+Run the installer:
 
-1. Place `ModuTone-Setup.exe` and `ModuTone-Setup.7z` in the **same folder**
-2. Run `ModuTone-Setup.exe` and follow the installer prompts
-3. Models install automatically during setup — no manual download or configuration needed
+```powershell
+Start-Process .\ModuTone_1.1.0_x64-setup.exe
+```
 
-### After Installation
+Launch:
 
-Launch ModuTone from the Start Menu or desktop shortcut. On first launch:
+```powershell
+Start-Process "shell:Start Menu\Programs\ModuTone.lnk"
+```
 
-1. ModuTone detects available system RAM
-2. The model selector shows which models are suitable for your system
-3. Select a model — it loads automatically
-4. Start writing
+Uninstall:
 
-### System Requirements
+```powershell
+Start-Process "ms-settings:appsfeatures"
+```
 
-| Requirement | Details |
-|------------|---------|
-| OS | Windows 11 x64 (Windows 10 may work but is untested) |
-| RAM (3B model) | 8 GB minimum |
-| RAM (14B model) | 24 GB minimum |
-| Disk space | ~3 GB (application + all bundled models) |
+Then select ModuTone and choose Uninstall.
 
-### Uninstall
+Remove user data, downloaded models, logs, and runtime files:
 
-Use Windows Settings > Apps > ModuTone, or run the uninstaller from the installation directory.
+```powershell
+Remove-Item -Recurse -Force "$env:APPDATA\com.modutone.desktop" `
+  -ErrorAction SilentlyContinue
+```
 
-The uninstaller will:
-- Remove the application and bundled model files
-- Ask whether to remove user data (settings, profiles, custom tags) — defaults to **keeping** user data
+## macOS
 
-User data location: `%APPDATA%\com.modutone.desktop\`
+Required release file:
 
-## macOS / Linux
+- `ModuTone_1.1.0_aarch64.dmg` for Apple Silicon, built without bundled models
 
-Build configurations exist for macOS (DMG) and Linux (AppImage, deb) but these platforms are untested. See [BUILD_FROM_SOURCE.md](BUILD_FROM_SOURCE.md) for instructions on building from source on these platforms.
+Install:
+
+```bash
+rm -rf /tmp/modutone-dmg
+mkdir -p /tmp/modutone-dmg
+hdiutil attach -nobrowse -readonly \
+  -mountpoint /tmp/modutone-dmg \
+  ./ModuTone_1.1.0_aarch64.dmg
+ditto /tmp/modutone-dmg/ModuTone.app /Applications/ModuTone.app
+hdiutil detach /tmp/modutone-dmg
+```
+
+Unsigned tester build launch:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/ModuTone.app
+open -n /Applications/ModuTone.app
+```
+
+Apple Silicon GPT-OSS setup:
+
+```bash
+brew install python@3.14
+```
+
+Then open ModuTone and use Settings:
+
+1. Install MLX Runtime.
+2. Download `GPT-OSS 20B TurboQuant 3-bit`.
+3. Select the model.
+
+Uninstall:
+
+```bash
+osascript -e 'tell application "ModuTone" to quit' || true
+rm -rf /Applications/ModuTone.app
+```
+
+Remove user data, downloaded models, logs, and runtime files:
+
+```bash
+rm -rf "$HOME/Library/Application Support/com.modutone.desktop"
+```
+
+## Linux
+
+Required release file, choose one:
+
+- `ModuTone_1.1.0_amd64.deb`
+- `ModuTone_1.1.0_amd64.AppImage`
+
+Install the deb package:
+
+```bash
+sudo apt install ./ModuTone_1.1.0_amd64.deb
+```
+
+Launch the deb install:
+
+```bash
+modutone
+```
+
+Run the AppImage:
+
+```bash
+chmod +x ./ModuTone_1.1.0_amd64.AppImage
+./ModuTone_1.1.0_amd64.AppImage
+```
+
+Install the AppImage for the current user:
+
+```bash
+mkdir -p "$HOME/.local/bin"
+cp ./ModuTone_1.1.0_amd64.AppImage "$HOME/.local/bin/modutone"
+chmod +x "$HOME/.local/bin/modutone"
+```
+
+Launch the user AppImage install:
+
+```bash
+"$HOME/.local/bin/modutone"
+```
+
+Uninstall the deb package:
+
+```bash
+sudo apt remove modutone
+```
+
+Uninstall the user AppImage install:
+
+```bash
+rm -f "$HOME/.local/bin/modutone"
+```
+
+Remove user data, downloaded models, logs, and runtime files:
+
+```bash
+rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/com.modutone.desktop"
+```
+
+## First Launch
+
+Open Settings and download a model. Select the model after the download
+completes.

@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicoulaj/dotfiles/refs/heads/master/submodules/tauri/crates/tauri-cli/schema.json",
   "productName": "ModuTone",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "identifier": "com.modutone.desktop",
   "build": {
     "frontendDist": "../dist",

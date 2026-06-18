@@ -8,6 +8,10 @@ dist/
 dist-bundle/
 *.tsbuildinfo
 
+# Test artifacts
+test-results/
+playwright-report/
+
 # Tauri auto-generated
 src-tauri/gen/
 
@@ -16,6 +20,7 @@ src-tauri/binaries/
 
 # Model weights (downloaded separately)
 src-tauri/resources/models/*.gguf
+src-tauri/resources/models/gpt-oss-20b-tq3/
 src-tauri/resources/models/.cache/
 
 # SFX stub build artifacts
@@ -42,6 +47,7 @@ Desktop.ini
 # Environment
 .env
 .env.local
+.venv-mlx/
 
 # Claude Code
 .claude/

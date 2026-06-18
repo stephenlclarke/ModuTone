@@ -783,6 +783,40 @@ describe("sessionSlice", () => {
     });
   });
 
+  describe("handleGenerationCommandFailed", () => {
+    it("transitions to error state without an active job", () => {
+      const tabId = store.getState().tabs[0]!.id;
+      store.getState().updateInputText(tabId, "text");
+
+      store.getState().handleGenerationCommandFailed(tabId, {
+        code: "MODEL_NOT_READY",
+        message: "No model is loaded",
+        detail: "Load a model first",
+        subsystem: "inference",
+      });
+
+      const tab = store.getState().tabs[0]!;
+      expect(tab.status).toBe("error");
+      expect(tab.activeJob).toBeNull();
+      expect(tab.error?.message).toBe("No model is loaded");
+      expect(tab.error?.cause).toBe("Load a model first");
+      expect(tab.error?.source?.code).toBe("MODEL_NOT_READY");
+    });
+
+    it("normalizes non-IPC command failures", () => {
+      const tabId = store.getState().tabs[0]!.id;
+
+      store
+        .getState()
+        .handleGenerationCommandFailed(tabId, new Error("transport down"));
+
+      const tab = store.getState().tabs[0]!;
+      expect(tab.status).toBe("error");
+      expect(tab.error?.message).toBe("Generation could not start");
+      expect(tab.error?.cause).toBe("transport down");
+    });
+  });
+
   describe("handleGenerationCanceled", () => {
     it("reverts to editing when no accepted output", () => {
       const tabId = store.getState().tabs[0]!.id;

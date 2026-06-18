@@ -1,0 +1,205 @@
+---
+name: Release
+
+"on":
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing tag to build and publish, for example v1.1.0"
+        required: true
+        type: string
+      draft:
+        description: "Create or update the GitHub Release as a draft"
+        required: false
+        default: true
+        type: boolean
+      prerelease:
+        description: "Mark the GitHub Release as a prerelease"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: "24"
+
+jobs:
+  macos-dmg:
+    name: Build and deploy Apple Silicon DMG
+    runs-on: macos-15
+    env:
+      APPLE_SIGNING_IDENTITY: "-"
+      CI: "true"
+      RELEASE_DRAFT: ${{ github.event.inputs.draft || 'false' }}
+      RELEASE_PRERELEASE: ${{ github.event.inputs.prerelease || 'false' }}
+      RELEASE_TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
+    steps:
+      - name: Checkout release ref
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.release_tag || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          cache: npm
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Validate release tag
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="$(node -p "require('./package.json').version")"
+          expected_tag="v${version}"
+
+          if [[ "${RELEASE_TAG}" != "${expected_tag}" ]]; then
+            printf 'Release tag %s must match package version %s.\n' \
+              "${RELEASE_TAG}" "${expected_tag}" >&2
+            exit 1
+          fi
+
+          if ! git rev-parse "${RELEASE_TAG}^{commit}" >/dev/null 2>&1; then
+            printf 'Release tag %s does not exist.\n' \
+              "${RELEASE_TAG}" >&2
+            exit 1
+          fi
+
+          {
+            printf 'tag=%s\n' "${RELEASE_TAG}"
+            printf 'title=ModuTone %s\n' "${version}"
+            printf 'version=%s\n' "${version}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Frontend tests
+        run: npm run test
+
+      - name: Build worker sidecar for Rust tests
+        run: npm run build:sidecar:dev
+
+      - name: Rust tests
+        run: cargo test --workspace
+
+      - name: Build app-only DMG
+        run: npm run build
+
+      - name: Locate DMG
+        id: dmg
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          dmg_dir="target/release/bundle/dmg"
+          dmg_path="$(
+            find "${dmg_dir}" -maxdepth 1 -type f -name '*.dmg' -print -quit
+          )"
+
+          if [[ -z "${dmg_path}" ]]; then
+            printf 'No DMG was produced in %s.\n' "${dmg_dir}" >&2
+            exit 1
+          fi
+
+          dmg_count="$(
+            find "${dmg_dir}" -maxdepth 1 -type f -name '*.dmg' |
+              wc -l |
+              tr -d ' '
+          )"
+          if [[ "${dmg_count}" != "1" ]]; then
+            printf 'Expected one DMG in %s, found %s.\n' \
+              "${dmg_dir}" "${dmg_count}" >&2
+            find "${dmg_dir}" -maxdepth 1 -type f -name '*.dmg' >&2
+            exit 1
+          fi
+
+          shasum -a 256 "${dmg_path}" > "${dmg_path}.sha256"
+
+          {
+            printf 'name=%s\n' "$(basename "${dmg_path}")"
+            printf 'path=%s\n' "${dmg_path}"
+            printf 'sha256_path=%s\n' "${dmg_path}.sha256"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Upload DMG workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: >-
+            modutone-${{ steps.metadata.outputs.version }}-apple-silicon-dmg
+          path: |
+            ${{ steps.dmg.outputs.path }}
+            ${{ steps.dmg.outputs.sha256_path }}
+
+      - name: Deploy DMG to GitHub Release
+        env:
+          DMG_PATH: ${{ steps.dmg.outputs.path }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TITLE: ${{ steps.metadata.outputs.title }}
+          SHA256_PATH: ${{ steps.dmg.outputs.sha256_path }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          notes_file="$(mktemp)"
+          cat > "${notes_file}" <<'NOTES'
+          ## macOS Apple Silicon DMG
+
+          This release asset is an app-only ModuTone DMG. It does not include
+          model weights.
+
+          After installing the app, open Settings and download a cataloged
+          model. For GPT-OSS 20B TurboQuant 3-bit on Apple Silicon, install
+          Python 3.14, install the MLX runtime from Settings, download the
+          model, and then select it.
+
+          Unsigned tester builds may need to be allowed in macOS Privacy &
+          Security or have the quarantine attribute removed before first launch.
+          NOTES
+
+          create_flags=(--verify-tag)
+
+          if [[ "${RELEASE_DRAFT}" == "true" ]]; then
+            create_flags+=(--draft)
+          fi
+
+          if [[ "${RELEASE_PRERELEASE}" == "true" ]]; then
+            create_flags+=(--prerelease)
+          fi
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" \
+              --draft="${RELEASE_DRAFT}" \
+              --notes-file "${notes_file}" \
+              --prerelease="${RELEASE_PRERELEASE}" \
+              --title "${RELEASE_TITLE}"
+
+            gh release upload "${RELEASE_TAG}" \
+              "${DMG_PATH}" \
+              "${SHA256_PATH}" \
+              --clobber
+          else
+            gh release create "${RELEASE_TAG}" \
+              "${DMG_PATH}" \
+              "${SHA256_PATH}" \
+              --notes-file "${notes_file}" \
+              --title "${RELEASE_TITLE}" \
+              "${create_flags[@]}"
+          fi

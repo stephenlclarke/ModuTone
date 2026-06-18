@@ -25,6 +25,13 @@ import type {
   ProfileResetRequest,
   ProfileResetResponse,
   ModelsListResponse,
+  ModelDownloadStartRequest,
+  ModelDownloadStartResponse,
+  ModelDownloadCancelRequest,
+  ModelDownloadCancelResponse,
+  MlxRuntimeStatusResponse,
+  MlxRuntimeInstallStartRequest,
+  MlxRuntimeInstallStartResponse,
   RuntimeStatusResponse,
   WarmModelRequest,
   SetBooleanRequest,
@@ -123,6 +130,35 @@ export async function profilesResetToDefault(
 
 export async function modelsList(): Promise<ModelsListResponse> {
   return invokeCommand<ModelsListResponse>("models_list");
+}
+
+export async function modelDownloadStart(
+  request: ModelDownloadStartRequest,
+): Promise<ModelDownloadStartResponse> {
+  return invokeCommand<ModelDownloadStartResponse>("model_download_start", {
+    request,
+  });
+}
+
+export async function modelDownloadCancel(
+  request: ModelDownloadCancelRequest,
+): Promise<ModelDownloadCancelResponse> {
+  return invokeCommand<ModelDownloadCancelResponse>("model_download_cancel", {
+    request,
+  });
+}
+
+export async function mlxRuntimeStatus(): Promise<MlxRuntimeStatusResponse> {
+  return invokeCommand<MlxRuntimeStatusResponse>("mlx_runtime_status");
+}
+
+export async function mlxRuntimeInstallStart(
+  request: MlxRuntimeInstallStartRequest,
+): Promise<MlxRuntimeInstallStartResponse> {
+  return invokeCommand<MlxRuntimeInstallStartResponse>(
+    "mlx_runtime_install_start",
+    { request },
+  );
 }
 
 // --- Runtime ---

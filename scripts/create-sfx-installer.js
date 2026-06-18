@@ -8,8 +8,9 @@
 //   ModuTone_<ver>_x64-setup.exe  — small SFX launcher (~2 MB)
 //   ModuTone_<ver>_x64-setup.7z   — payload archive (no size limit)
 //
-// The user runs setup.exe. It finds the companion .7z, extracts it
-// to temp, and runs the NSIS installer. The NSIS POSTINSTALL hook
+// The user runs setup.exe. It finds the companion .7z or embedded
+// payload, extracts it to temp with an installed or companion 7-Zip
+// executable, and runs the NSIS installer. The NSIS POSTINSTALL hook
 // copies model files from the extracted directory into the install dir.
 //
 // File layout (self-contained SFX, when payload fits):
@@ -21,22 +22,30 @@
 //   npm run build                              (produces the NSIS installer)
 //   7-Zip installed                            (C:\Program Files\7-Zip\7z.exe)
 //   tools/sfx-stub/target/release/sfx-stub.exe (64-bit SFX stub)
+//     Default stub builds need 7-Zip installed or a companion 7za.exe/7z.exe
+//     next to the launcher at install time. Build the stub with
+//     `--features embedded-7za` to embed tools/7za.exe when that file is
+//     available locally.
 //
 // Usage:
 //   node scripts/create-sfx-installer.js
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import {
-  readFileSync,
-  readdirSync,
-  statSync,
+  appendFileSync,
+  copyFileSync,
+  createReadStream,
+  createWriteStream,
   existsSync,
   mkdirSync,
-  copyFileSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
   rmSync,
-  appendFileSync,
+  statSync,
 } from "node:fs";
 import { join, dirname } from "node:path";
+import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -51,8 +60,7 @@ const SFX_STUB = join(
   "release",
   "sfx-stub.exe",
 );
-const SEVEN_ZIP =
-  process.env.SEVEN_ZIP_PATH || "C:/Program Files/7-Zip/7z.exe";
+const SEVEN_ZIP = process.env.SEVEN_ZIP_PATH || "C:/Program Files/7-Zip/7z.exe";
 const MODELS_DIR = join(root, "src-tauri", "resources", "models");
 const CATALOG_PATH = join(MODELS_DIR, "model_catalog.json");
 
@@ -63,13 +71,33 @@ const PE_SIZE_LIMIT = 4_294_967_296;
 // Must match INSTALLED_SIZE_THRESHOLD in model_catalog.rs
 const INSTALLED_SIZE_THRESHOLD = 0.9;
 
+function formatError(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function appendFileContents(sourcePath, destinationPath) {
+  await pipeline(
+    createReadStream(sourcePath),
+    createWriteStream(destinationPath, { flags: "a" }),
+  );
+}
+
+function moveFileOrCopy(sourcePath, destinationPath) {
+  rmSync(destinationPath, { force: true });
+
+  try {
+    renameSync(sourcePath, destinationPath);
+  } catch {
+    copyFileSync(sourcePath, destinationPath);
+    rmSync(sourcePath, { force: true });
+  }
+}
+
 // ── Validate prerequisites ────────────────────────────────────────
 
 if (!existsSync(SFX_STUB)) {
   console.error(`ERROR: SFX stub not found at ${SFX_STUB}`);
-  console.error(
-    "Build it first: cd tools/sfx-stub && cargo build --release",
-  );
+  console.error("Build it first: cd tools/sfx-stub && cargo build --release");
   process.exit(1);
 }
 
@@ -100,6 +128,31 @@ if (!existsSync(installerPath)) {
 
 const catalog = JSON.parse(readFileSync(CATALOG_PATH, "utf-8"));
 
+function entryStoragePaths(entry) {
+  if (Array.isArray(entry.files) && entry.files.length > 0) {
+    return entry.files;
+  }
+  const storagePath = entry.filename ?? entry.path;
+  return storagePath ? [storagePath] : [];
+}
+
+function catalogEntryForFile(filename) {
+  return catalog.find((entry) => entryStoragePaths(entry).includes(filename));
+}
+
+function catalogEntryComplete(entry) {
+  const files = entryStoragePaths(entry);
+  const actualSize = files.reduce((total, filename) => {
+    const path = join(MODELS_DIR, filename);
+    return existsSync(path) ? total + statSync(path).size : total;
+  }, 0);
+  return (
+    files.length > 0 &&
+    files.every((filename) => existsSync(join(MODELS_DIR, filename))) &&
+    actualSize >= Math.floor(entry.sizeBytes * INSTALLED_SIZE_THRESHOLD)
+  );
+}
+
 const ggufFiles = readdirSync(MODELS_DIR)
   .filter((f) => f.toLowerCase().endsWith(".gguf"))
   .map((f) => ({
@@ -108,9 +161,9 @@ const ggufFiles = readdirSync(MODELS_DIR)
     size: statSync(join(MODELS_DIR, f)).size,
   }))
   .filter((file) => {
-    const entry = catalog.find((e) => e.filename === file.filename);
+    const entry = catalogEntryForFile(file.filename);
     if (!entry) return file.size > 0;
-    return file.size >= Math.floor(entry.sizeBytes * INSTALLED_SIZE_THRESHOLD);
+    return catalogEntryComplete(entry);
   });
 
 if (ggufFiles.length === 0) {
@@ -170,21 +223,22 @@ for (const { src, dest } of allFiles) {
 // ── Create 7z archive (store mode — GGUF is incompressible) ───────
 
 const archivePath = join(stagingDir, "payload.7z");
-const relativeInputs = allFiles.map((f) => `"${f.dest}"`).join(" ");
 
 console.log();
 console.log("Creating 7z archive (store mode)...");
 
-const sevenZipCmd = `"${SEVEN_ZIP}" a -mx0 "${archivePath}" ${relativeInputs}`;
-
 try {
-  execSync(sevenZipCmd, {
-    stdio: "inherit",
-    timeout: 600_000,
-    cwd: stagingDir,
-  });
-} catch {
-  console.error("ERROR: 7z archive creation failed.");
+  execFileSync(
+    SEVEN_ZIP,
+    ["a", "-mx0", archivePath, ...allFiles.map((f) => f.dest)],
+    {
+      stdio: "inherit",
+      timeout: 600_000,
+      cwd: stagingDir,
+    },
+  );
+} catch (error) {
+  console.error(`ERROR: 7z archive creation failed: ${formatError(error)}`);
   process.exit(1);
 }
 
@@ -204,13 +258,11 @@ if (fitsInSingleExe) {
   const archiveOffset = statSync(outputPath).size;
 
   try {
-    execSync(`cat "${archivePath}" >> "${outputPath}"`, {
-      stdio: "inherit",
-      shell: true,
-      timeout: 300_000,
-    });
-  } catch {
-    console.error("ERROR: Appending archive to SFX failed.");
+    await appendFileContents(archivePath, outputPath);
+  } catch (error) {
+    console.error(
+      `ERROR: Appending archive to SFX failed: ${formatError(error)}`,
+    );
     process.exit(1);
   }
 
@@ -242,17 +294,8 @@ if (fitsInSingleExe) {
 
   copyFileSync(SFX_STUB, exePath);
 
-  // Move archive to output dir (rename, not copy, to save time on large files)
-  try {
-    execSync(`mv "${archivePath}" "${sevenZPath}"`, {
-      stdio: "inherit",
-      shell: true,
-      timeout: 300_000,
-    });
-  } catch {
-    // Fallback: copy if mv fails (cross-device)
-    copyFileSync(archivePath, sevenZPath);
-  }
+  // Move archive to output dir (rename, then copy if crossing devices).
+  moveFileOrCopy(archivePath, sevenZPath);
 
   const exeSize = statSync(exePath).size;
   const payloadSize = statSync(sevenZPath).size;
@@ -275,7 +318,9 @@ if (fitsInSingleExe) {
 
 console.log();
 console.log(`  NSIS core:  ${(nsisSize / 1e6).toFixed(1)} MB`);
-console.log(`  Models:     ${ggufFiles.length} file(s), ${(totalModelSize / 1e9).toFixed(2)} GB`);
+console.log(
+  `  Models:     ${ggufFiles.length} file(s), ${(totalModelSize / 1e9).toFixed(2)} GB`,
+);
 console.log();
 console.log("The user runs this single .exe to install:");
 console.log("  - ModuTone app + worker sidecar");

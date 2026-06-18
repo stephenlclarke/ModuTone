@@ -71,7 +71,7 @@ impl LlamaCppAdapter {
         let model_params = LlamaModelParams::default();
 
         let model = LlamaModel::load_from_file(&backend, model_path, &model_params)
-            .map_err(|e| format!("Failed to load model from '{}': {}", model_path, e))?;
+            .map_err(|e| format!("Failed to load model '{}': {}", model_id, e))?;
 
         let load_ms = start.elapsed().as_millis() as u64;
         log::info!(

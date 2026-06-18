@@ -65,6 +65,8 @@ export function ModelStatusChip({ onOpenSettings }: ModelStatusChipProps) {
   } else if (phase === "failed") {
     if (lastErrorClassification === "model_invalid") {
       label = "Model Unavailable";
+    } else if (lastErrorClassification === "runtime_missing") {
+      label = "Runtime Missing";
     } else if (lastErrorClassification === "insufficient_memory") {
       label = "Insufficient Memory";
     } else {
