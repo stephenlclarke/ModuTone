@@ -1,7 +1,7 @@
 // Phase: 5
 // Status bar with runtime, model, privacy, job, and version segments
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useAppStore } from "../../state/store";
 import { resolveModelDisplayName } from "../../utils/resolveModelDisplayName";
 
@@ -70,14 +70,11 @@ export function StatusBar() {
  */
 function ElapsedTimer({ label }: { label: string }) {
   const [elapsed, setElapsed] = useState(0);
-  const startTime = useRef(Date.now());
-
   useEffect(() => {
-    startTime.current = Date.now();
-    setElapsed(0);
+    const startTime = Date.now();
 
     const interval = setInterval(() => {
-      setElapsed(Date.now() - startTime.current);
+      setElapsed(Date.now() - startTime);
     }, 100);
 
     return () => clearInterval(interval);
