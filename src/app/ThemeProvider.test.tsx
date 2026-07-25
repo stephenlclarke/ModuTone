@@ -35,6 +35,14 @@ describe("ThemeProvider", () => {
     darkMql = createMockMatchMedia(false);
     motionMql = createMockMatchMedia(false);
 
+    if (!window.matchMedia) {
+      Object.defineProperty(window, "matchMedia", {
+        configurable: true,
+        writable: true,
+        value: () => createMockMatchMedia(false),
+      });
+    }
+
     vi.spyOn(window, "matchMedia").mockImplementation((query: string) => {
       if (query === "(prefers-color-scheme: dark)") return darkMql as never;
       if (query === "(prefers-reduced-motion: reduce)")
